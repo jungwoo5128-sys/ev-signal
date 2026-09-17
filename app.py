@@ -2,7 +2,9 @@
 
 import html
 import math
+import re
 import time
+from pathlib import Path
 
 import streamlit as st
 
@@ -10,53 +12,24 @@ from src import calc, judge, llm, loader
 
 st.set_page_config(page_title="전기차 신호등", layout="wide")
 
-# 입력 흐름 UI 색상. 판정 램프(초록/노랑/빨강)와 섞지 않는다.
-# 값은 임시 — 디자인 팔레트가 정해지면 여기만 바꾸면 된다.
-st.markdown(
-    """<style>
-    :root {
-        --accent: #d0217c;        /* 마젠타: 현재 단계, 주요 버튼 */
-        --accent-hover: #a8185f;
-        --line: #17a2b8;          /* 시안: 완료 단계, 연결선 */
-        --muted: #c5c9d0;         /* 이후 단계 */
-        --muted-text: #6b7280;
-    }
-    .st-key-nav_next button, .st-key-nav_submit button {
-        background: var(--accent); border: 1px solid var(--accent); color: #fff;
-    }
-    .st-key-nav_next button:hover, .st-key-nav_submit button:hover {
-        background: var(--accent-hover); border-color: var(--accent-hover); color: #fff;
-    }
-    .st-key-nav_next button:disabled, .st-key-nav_submit button:disabled {
-        background: var(--muted); border-color: var(--muted); color: #fff; opacity: 0.7;
-    }
-    .st-key-nav_prev button {
-        background: transparent; border: 1px solid var(--accent); color: var(--accent);
-    }
-    .st-key-nav_prev button:hover {
-        background: transparent; border-color: var(--accent-hover); color: var(--accent-hover);
-    }
-    </style>""",
-    unsafe_allow_html=True,
-)
+# 테마 CSS (팔레트·폰트·컴포넌트). 색·폰트는 static/style.css에서만 관리한다.
+STYLE_PATH = Path(__file__).resolve().parent / "static" / "style.css"
+st.markdown(f"<style>{STYLE_PATH.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
 
-GRADE_COLORS = {"GREEN": "#2e9e5b", "YELLOW": "#e0a92b", "RED": "#d14343"}
 GRADE_LABELS = {"GREEN": "추천", "YELLOW": "조건부", "RED": "비추천"}
 GRADE_MESSAGES = {
     "GREEN": "전환을 권장합니다",
     "YELLOW": "조건을 확인한 뒤 결정하세요",
     "RED": "지금은 권장하지 않습니다",
 }
-OFF_COLOR = "#e0e0e0"
+NUMBER_RE = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
 
-# (배경, 테두리)
-TIMING_COLORS = {
-    "ok": ("#e8f5ec", "#2e9e5b"),
-    "urgent": ("#fdf4e0", "#e0a92b"),
-    "over": ("#fbe9e9", "#d14343"),
-    "closed": ("#f0f0f0", "#9e9e9e"),
-    "unknown": ("#f0f0f0", "#9e9e9e"),
-}
+
+def mono(text):
+    """HTML 이스케이프 후 숫자만 모노스페이스 span으로 감싼다 (금액·수치·연도)."""
+    return NUMBER_RE.sub(
+        lambda m: f'<span class="evs-num">{m.group(0)}</span>', html.escape(str(text), quote=False)
+    )
 
 LONG_TRIP_OPTIONS = ["거의없음", "월1~2회", "월3회이상"]
 HOUSING_OPTIONS = ["아파트", "단독", "빌라·오피스텔"]
@@ -182,29 +155,17 @@ STEPS = ["주행", "거주", "차량·보유"]
 def render_step_indicator(current):
     parts = []
     for i, label in enumerate(STEPS, start=1):
-        if i == current:
-            bg, fg, weight = "var(--accent)", "#fff", 700
-        elif i < current:
-            bg, fg, weight = "var(--line)", "#fff", 400
-        else:
-            bg, fg, weight = "var(--muted)", "var(--muted-text)", 400
+        state = "is-current" if i == current else "is-done" if i < current else "is-todo"
         parts.append(
-            f"""<div style="display:flex;flex-direction:column;align-items:center;min-width:64px">
-                  <div style="width:36px;height:36px;border-radius:50%;background:{bg};color:{fg};
-                              display:flex;align-items:center;justify-content:center;
-                              font-weight:700">{i}</div>
-                  <div style="margin-top:4px;font-size:13px;font-weight:{weight}">{label}</div>
-                </div>"""
+            f'<div class="evs-step {state}">'
+            f'<div class="evs-step-dot">{i}</div>'
+            f'<div class="evs-step-label">{label}</div>'
+            f"</div>"
         )
         if i < len(STEPS):
-            line = "var(--line)" if i < current else "var(--muted)"
-            parts.append(
-                f'<div style="flex:0 0 48px;height:3px;background:{line};margin-top:17px"></div>'
-            )
-    st.markdown(
-        f'<div style="display:flex;align-items:flex-start;margin:8px 0 16px">{"".join(parts)}</div>',
-        unsafe_allow_html=True,
-    )
+            line_state = "is-done" if i < current else ""
+            parts.append(f'<div class="evs-step-line {line_state}"></div>')
+    st.markdown(f'<div class="evs-steps">{"".join(parts)}</div>', unsafe_allow_html=True)
 
 
 def step_ready(n):
@@ -378,7 +339,7 @@ def won_k(value):
 
 def evidence_table(title, rows):
     """rows: (항목, 값, 비고) 목록"""
-    st.markdown(f"**{title}**")
+    st.markdown(f'<div class="evs-block-title">{title}</div>', unsafe_allow_html=True)
     st.table({
         "항목": [r[0] for r in rows],
         "값": [r[1] for r in rows],
@@ -395,38 +356,35 @@ def format_bep(years):
 
 
 def render_signal(grade, reasons, explanation):
-    circles = "".join(
-        f"""<div style="text-align:center;margin-right:18px">
-              <div style="width:64px;height:64px;border-radius:50%;
-                          background:{GRADE_COLORS[g] if g == grade else OFF_COLOR}"></div>
-              <div style="margin-top:6px;font-size:14px;
-                          font-weight:{700 if g == grade else 400}">{GRADE_LABELS[g]}</div>
-            </div>"""
+    lamps = "".join(
+        f'<div class="evs-lamp grade-{g} {"is-on" if g == grade else ""}">'
+        f'<div class="evs-lamp-dot"></div>'
+        f'<div class="evs-lamp-label">{GRADE_LABELS[g]}</div>'
+        f"</div>"
         for g in ("GREEN", "YELLOW", "RED")
     )
     light_col, text_col = st.columns([1, 2])
     with light_col:
-        st.markdown(
-            f'<div style="display:flex;align-items:flex-start">{circles}</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(f'<div class="evs-lamps">{lamps}</div>', unsafe_allow_html=True)
     with text_col:
         # 등급(색)은 항상 judge() 결과. LLM은 문구만 담당한다.
         use_llm = not explanation["fallback"]
         headline = explanation["headline"] if use_llm else GRADE_MESSAGES[grade]
+        if use_llm:
+            body = f'<p class="evs-reason">{mono(explanation["reason"])}</p>'
+            if explanation["caution"]:
+                body += f'<div class="evs-caution">⚠️ {mono(explanation["caution"])}</div>'
+        else:
+            items = [text for _, text in reasons] or ["특별한 제약 사항이 없습니다"]
+            body = (
+                '<div class="evs-reason"><ul>'
+                + "".join(f"<li>{mono(t)}</li>" for t in items)
+                + "</ul></div>"
+            )
         st.markdown(
-            f'<div style="font-size:32px;font-weight:700;color:{GRADE_COLORS[grade]}">'
-            f"{html.escape(headline)}</div>",
+            f'<div class="evs-headline">{html.escape(headline)}</div>{body}',
             unsafe_allow_html=True,
         )
-        if use_llm:
-            st.write(explanation["reason"])
-            if explanation["caution"]:
-                st.caption(f"⚠️ {explanation['caution']}")
-        elif reasons:
-            st.markdown("\n".join(f"- {text}" for _, text in reasons))
-        else:
-            st.markdown("- 특별한 제약 사항이 없습니다")
 
 
 FALLBACK_RETRY_SECONDS = 60
@@ -453,11 +411,11 @@ def explain(grade, reasons, ctx, calc_results):
 
 def card(title, value, note):
     st.markdown(
-        f"""<div style="border:1px solid #ddd;border-radius:12px;padding:18px 20px">
-              <div style="font-size:15px;color:#666">{title}</div>
-              <div style="font-size:30px;font-weight:700;margin:6px 0">{value}</div>
-              <div style="font-size:13px;color:#888">{note}</div>
-            </div>""",
+        f'<div class="evs-card">'
+        f'<div class="evs-card-title">{html.escape(title)}</div>'
+        f'<div class="evs-card-value">{html.escape(value)}</div>'
+        f'<div class="evs-card-note">{mono(note)}</div>'
+        f"</div>",
         unsafe_allow_html=True,
     )
 
@@ -560,7 +518,6 @@ def render_result():
     st.write("")
 
     # 4) 보조금 현황
-    background, border = TIMING_COLORS[level]
     if level == "unknown":
         figures = "접수율 정보 없음 · 출고잔여 정보 없음"
     else:
@@ -568,12 +525,11 @@ def render_result():
         remain_text = f"{remain:,}대" if remain is not None else "정보 없음"
         figures = f"접수율 {status['접수율']}% · 출고잔여 {remain_text}"
     st.markdown(
-        f"""<div style="background:{background};border-left:6px solid {border};
-                        border-radius:8px;padding:14px 18px">
-              <div style="font-weight:700;margin-bottom:4px">참고 · 보조금 현황</div>
-              <div>{ss.region} {figures}</div>
-              <div style="margin-top:4px">{advice}</div>
-            </div>""",
+        f'<div class="evs-status level-{level}">'
+        f'<div class="evs-status-title">참고 · 보조금 현황</div>'
+        f"<div>{html.escape(ss.region)} {mono(figures)}</div>"
+        f'<div class="evs-status-advice">{html.escape(advice)}</div>'
+        f"</div>",
         unsafe_allow_html=True,
     )
     st.write("")
@@ -596,19 +552,22 @@ def render_result():
         evidence_table("결과", [
             ("회수 기간", format_bep(bep["bep_years"]), "실제 추가 부담 ÷ 연간 절감액"),
         ])
-        st.markdown(
-            f"**모델 제원** · 배터리 {model_info['battery_kwh']}kWh · "
+        spec = mono(
+            f"배터리 {model_info['battery_kwh']}kWh · "
             f"상온 {model_info['range_normal']}km / 저온 {model_info['range_cold']}km"
         )
+        st.markdown(f"<p><strong>모델 제원</strong> · {spec}</p>", unsafe_allow_html=True)
         st.markdown(
-            "**데이터 출처**\n"
-            "- 무공해차 통합누리집 (기후에너지환경부)\n"
-            f"- 기준 시각 {base_date}\n"
-            "- 유가·충전요금은 가정값이며, 차량 가격 차이는 사용자 입력값입니다"
+            "<p><strong>데이터 출처</strong></p><ul>"
+            "<li>무공해차 통합누리집 (기후에너지환경부)</li>"
+            f"<li>기준 시각 {mono(base_date)}</li>"
+            "<li>유가·충전요금은 가정값이며, 차량 가격 차이는 사용자 입력값입니다</li></ul>",
+            unsafe_allow_html=True,
         )
-        st.caption(
-            f"본 결과는 참고용입니다. 최종 확인은 관할 지자체"
-            f"({status['담당부서']} {status['연락처']}) 문의"
+        contact = mono(f"{status['담당부서']} {status['연락처']}")
+        st.markdown(
+            f'<div class="evs-caution">본 결과는 참고용입니다. 최종 확인은 관할 지자체({contact}) 문의</div>',
+            unsafe_allow_html=True,
         )
 
     # 6) 하단

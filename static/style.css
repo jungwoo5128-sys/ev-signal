@@ -1,0 +1,353 @@
+/* 전기차 신호등 — 사이버펑크 테마
+ * 원칙
+ *  - 네온(판정 램프 색)은 램프에만. 본문 텍스트는 --text / --muted.
+ *  - 글로우는 활성 판정 램프에만.
+ *  - 장식용 애니메이션(스캔라인·글리치·깜빡임) 없음. 로딩 스피너는 기능이라 유지.
+ *  - 폰트 로드 실패 시 시스템 폰트로 폴백 (display=swap).
+ */
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap");
+
+:root {
+    --bg: #080B14;
+    --panel: #0E1524;
+    --line: #1BC4D4;
+    --accent: #FF2E88;
+    --accent-hover: #D91E70;
+    --text: #C8D4E4;
+    --muted: #6B7C93;
+
+    /* 판정 램프 전용 — 다른 곳에 쓰지 말 것 */
+    --lamp-green: #00FF87;
+    --lamp-yellow: #FFB800;
+    --lamp-red: #FF3355;
+    --lamp-off: #1A2233;
+
+    /* 보조금 현황 박스: level별 색을 채도 낮게 (램프보다 약하게) */
+    --status-ok: #4E8C78;
+    --status-urgent: #A38A55;
+    --status-over: #9C5E68;
+    --status-closed: #56647A;
+
+    --hairline: rgba(27, 196, 212, 0.22);
+    --border-soft: rgba(107, 124, 147, 0.35);
+
+    --font-sans: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR",
+        system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, "D2Coding",
+        monospace;
+}
+
+/* ---------- 기본 ---------- */
+[data-testid="stDecoration"] {
+    display: none;
+}
+
+.stApp,
+.stApp :is(h1, h2, h3, h4, p, li, label, input, textarea, button, td, th, div, span):not([data-testid="stIconMaterial"]),
+[data-testid="stSelectboxVirtualDropdown"] :is(li, div, span):not([data-testid="stIconMaterial"]),
+[role="listbox"] :is(li, div, span) {
+    font-family: var(--font-sans);
+}
+
+.stApp h1,
+.stApp h2,
+.stApp h3 {
+    color: var(--text);
+    letter-spacing: -0.01em;
+}
+
+.evs-num,
+[data-testid="stNumberInput"] input {
+    font-family: var(--font-mono) !important;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 입력 위젯 ---------- */
+[data-testid="stWidgetLabel"] p {
+    color: var(--muted);
+}
+
+[data-testid="stSelectbox"] [role="group"],
+[data-testid="stNumberInputContainer"] {
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+}
+
+[data-testid="stSelectbox"] [role="group"]:focus-within,
+[data-testid="stNumberInputContainer"]:focus-within {
+    border-color: var(--accent);
+}
+
+/* ---------- 단계 표시기 ---------- */
+.evs-steps {
+    display: flex;
+    align-items: flex-start;
+    margin: 8px 0 16px;
+}
+
+.evs-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 64px;
+}
+
+.evs-step-dot {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono) !important;
+    font-weight: 700;
+    border: 1px solid var(--muted);
+    color: var(--muted);
+    background: transparent;
+}
+
+.evs-step-label {
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.evs-step.is-current .evs-step-dot {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+}
+
+.evs-step.is-current .evs-step-label {
+    color: var(--text);
+    font-weight: 700;
+}
+
+.evs-step.is-done .evs-step-dot {
+    background: var(--line);
+    border-color: var(--line);
+    color: var(--bg);
+}
+
+.evs-step.is-done .evs-step-label {
+    color: var(--text);
+}
+
+.evs-step-line {
+    flex: 0 0 48px;
+    height: 2px;
+    margin-top: 17px;
+    background: var(--muted);
+    opacity: 0.5;
+}
+
+.evs-step-line.is-done {
+    background: var(--line);
+    opacity: 1;
+}
+
+/* ---------- 내비게이션 버튼 ---------- */
+.st-key-nav_next button,
+.st-key-nav_submit button {
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    color: var(--bg);
+    font-weight: 700;
+}
+
+.st-key-nav_next button:hover,
+.st-key-nav_submit button:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+    color: var(--bg);
+}
+
+.st-key-nav_next button:disabled,
+.st-key-nav_submit button:disabled {
+    background: transparent;
+    border-color: var(--border-soft);
+    color: var(--muted);
+}
+
+.st-key-nav_prev button {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+}
+
+.st-key-nav_prev button:hover {
+    background: transparent;
+    border-color: var(--accent-hover);
+    color: var(--accent-hover);
+}
+
+/* ---------- 판정 램프 (유일한 볼드 포인트) ---------- */
+.evs-lamps {
+    display: flex;
+    align-items: flex-start;
+    gap: 18px;
+}
+
+.evs-lamp {
+    text-align: center;
+}
+
+.evs-lamp-dot {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--lamp-off);
+}
+
+.evs-lamp-label {
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--muted);
+}
+
+.evs-lamp.is-on .evs-lamp-label {
+    color: var(--text);
+    font-weight: 700;
+}
+
+.evs-lamp.is-on.grade-GREEN .evs-lamp-dot {
+    background: var(--lamp-green);
+    box-shadow: 0 0 24px rgba(0, 255, 135, 0.5);
+}
+
+.evs-lamp.is-on.grade-YELLOW .evs-lamp-dot {
+    background: var(--lamp-yellow);
+    box-shadow: 0 0 24px rgba(255, 184, 0, 0.5);
+}
+
+.evs-lamp.is-on.grade-RED .evs-lamp-dot {
+    background: var(--lamp-red);
+    box-shadow: 0 0 24px rgba(255, 51, 85, 0.5);
+}
+
+.evs-headline {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.3;
+}
+
+.evs-reason {
+    margin: 10px 0 0;
+    color: var(--text);
+    line-height: 1.7;
+}
+
+.evs-reason ul {
+    margin: 0;
+    padding-left: 1.2em;
+}
+
+.evs-caution {
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--muted);
+}
+
+/* ---------- 카드 3종 ---------- */
+.evs-card {
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+    padding: 18px 20px;
+}
+
+.evs-card-title {
+    font-size: 15px;
+    color: var(--muted);
+}
+
+.evs-card-value {
+    margin: 6px 0;
+    font-family: var(--font-mono) !important;
+    font-variant-numeric: tabular-nums;
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.evs-card-note {
+    font-size: 13px;
+    color: var(--muted);
+}
+
+/* ---------- 보조금 현황 박스 ---------- */
+.evs-status {
+    --status: var(--status-closed);
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    border-left: 4px solid var(--status);
+    border-radius: 8px;
+    padding: 14px 18px;
+    color: var(--text);
+}
+
+.evs-status.level-ok { --status: var(--status-ok); }
+.evs-status.level-urgent { --status: var(--status-urgent); }
+.evs-status.level-over { --status: var(--status-over); }
+.evs-status.level-closed,
+.evs-status.level-unknown { --status: var(--status-closed); }
+
+.evs-status-title {
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: var(--status);
+}
+
+.evs-status-advice {
+    margin-top: 4px;
+}
+
+/* ---------- 근거 상세 ---------- */
+[data-testid="stExpander"] details {
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+}
+
+[data-testid="stExpander"] summary p {
+    color: var(--text);
+}
+
+.evs-block-title {
+    margin: 12px 0 6px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--line);
+    letter-spacing: 0.04em;
+}
+
+[data-testid="stTable"] table {
+    background: var(--bg);
+    border-collapse: collapse;
+    width: 100%;
+}
+
+[data-testid="stTable"] th,
+[data-testid="stTable"] td {
+    border: none;
+    border-bottom: 1px solid var(--hairline);
+    color: var(--text);
+}
+
+[data-testid="stTable"] thead th {
+    color: var(--muted);
+    font-weight: 500;
+}
+
+/* 값 열: 모노스페이스, 오른쪽 정렬 */
+[data-testid="stTable"] tbody td:nth-of-type(2) {
+    font-family: var(--font-mono) !important;
+    font-variant-numeric: tabular-nums;
+    text-align: right !important;
+}
+
+[data-testid="stTable"] tbody td:nth-of-type(3) {
+    color: var(--muted);
+    font-size: 13px;
+}
