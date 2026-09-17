@@ -398,3 +398,11 @@ def test_chat_question_number_does_not_allow_other_amounts(monkeypatch):
     chat_client(monkeypatch, text="자녀가 3명이면 다자녀 가구입니다. 다자녀 가구는 100만원을 추가로 받습니다.")
     result = llm.answer_eligibility("자녀가 3명인데 혜택이 있나요?", [], "성남시", CHAT_NOTICE, RULES)
     assert result["answer"] == "자녀가 3명이면 다자녀 가구입니다. 정확한 금액은 관할 지자체에 확인해 주세요."
+
+
+def test_chat_prompt_forbids_eligibility_judgment(monkeypatch):
+    captured = chat_client(monkeypatch, text="다자녀 가구가 우선순위 대상으로 명시되어 있습니다.")
+    llm.answer_eligibility("자녀 3명이면 해당하나요?", [], "서울특별시", CHAT_NOTICE, RULES)
+    system = captured["system"]
+    assert "자격 요건을 충족하는지 판단하지 마세요" in system
+    assert "'해당합니다', '해당할 수 있습니다', '대상입니다'" in system
