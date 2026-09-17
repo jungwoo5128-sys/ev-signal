@@ -80,6 +80,7 @@ def _build_user_message(grade, reasons, ctx, calc_results) -> str:
         "사용자 조건": {
             "연간 주행거리": f"{ctx.annual_km:,}km",
             "현재 차량 연비": f"{inputs.get('current_efficiency')}km/L",
+            "차량 가격 차이": f"{inputs.get('price_gap') or 0:,.0f}원",
             "예상 보유 기간": f"{ctx.hold_years}년",
             "주거지 충전기": "있음" if ctx.home_charger else "없음",
             "근무지 충전기": "있음" if ctx.work_charger else "없음",

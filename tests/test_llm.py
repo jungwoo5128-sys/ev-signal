@@ -22,7 +22,8 @@ CALC = {
     "subsidy": {"subsidy": 10200000.0},
     "co2": {"reduction_ton": 1.8468, "pine_trees": 279.8},
     "bep": {"net_cost": 5800000.0, "bep_years": 4.1187},
-    "inputs": {"current_efficiency": 11.2, "battery_kwh": 83.6, "range_normal": 462},
+    "inputs": {"current_efficiency": 11.2, "battery_kwh": 83.6, "range_normal": 462,
+               "price_gap": 16_000_000},
 }
 RED_REASONS = [("block", "보유 예정 3년 내 회수 불가 (BEP 4.1년)")]
 REQUEST = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
@@ -158,5 +159,6 @@ def test_refusal_falls_back(monkeypatch):
 
 def test_numbers_passed_as_display_strings():
     message = llm._build_user_message("GREEN", [], CTX, CALC)
-    for expected in ("1,408,000원", "10,200,000원", "1.85톤", "280그루", "5,800,000원", "4.1년"):
+    for expected in ("1,408,000원", "10,200,000원", "1.85톤", "280그루", "5,800,000원", "4.1년",
+                     "16,000,000원"):
         assert expected in message

@@ -45,6 +45,7 @@ DEFAULTS = {
     "hold_years": 7,
     "model": None,
     "current_efficiency": 11.2,
+    "price_gap_manwon": config.DEFAULT_PRICE_GAP // 10000,
     "has_scrap": True,
 }
 
@@ -59,6 +60,7 @@ EXAMPLE_PROFILE = {
     "hold_years": 7,
     "model": "더 뉴 아이오닉5 2WD 롱레인지 19인치",
     "current_efficiency": 11.2,
+    "price_gap_manwon": 1600,
     "has_scrap": True,
 }
 
@@ -198,6 +200,13 @@ def render_input():
             format="%.1f",
             key=bind("current_efficiency"),
         )
+        ss.price_gap_manwon = st.number_input(
+            "전기차와 내연기관차의 가격 차이 (만원)",
+            min_value=0,
+            step=100,
+            help="관심 전기차 가격에서 비교 대상 내연기관차 가격을 뺀 금액입니다",
+            key=bind("price_gap_manwon"),
+        )
         ss.has_scrap = st.checkbox(
             "현재 차량 폐차 또는 매도 예정", key=bind("has_scrap")
         )
@@ -219,6 +228,13 @@ def won(value):
 
 def manwon(value):
     return f"{(value or 0) / 10000:,.0f}"
+
+
+def format_net_cost(value):
+    """표시 전용. 계산값(음수 포함)은 그대로 두고, 0 이하면 설명을 붙인다."""
+    if value <= 0:
+        return "0원 (보조금이 차액보다 큼)"
+    return won(value)
 
 
 def format_bep(years):
@@ -334,7 +350,8 @@ def render_result():
     fuel = calc.calc_fuel_saving(ss.annual_km, ss.current_efficiency, ev_eff)
     subsidy = calc.calc_subsidy(model_info, ss.has_scrap)
     co2 = calc.calc_co2(ss.annual_km, ss.current_efficiency, ev_eff)
-    bep = calc.calc_bep(config.DEFAULT_PRICE_GAP, subsidy["subsidy"] or 0, fuel["saving"])
+    price_gap = ss.price_gap_manwon * 10000  # 만원 → 원
+    bep = calc.calc_bep(price_gap, subsidy["subsidy"] or 0, fuel["saving"])
     status = loader.get_region_status(summary_df, ss.region)
     ctx = judge.JudgeContext(
         bep_years=bep["bep_years"],
@@ -357,6 +374,7 @@ def render_result():
         "bep": bep,
         "inputs": {
             "current_efficiency": ss.current_efficiency,
+            "price_gap": price_gap,
             "battery_kwh": model_info["battery_kwh"],
             "range_normal": model_info["range_normal"],
         },
@@ -416,7 +434,7 @@ def render_result():
                     "현재 차량 연간 유류비",
                     "전기차 연간 충전비",
                     "연간 절감액",
-                    "차량 가격 차이",
+                    "차량 가격 차이 (사용자 입력)",
                     "보조금 차감 후 실부담",
                     "회수 기간",
                 ],
@@ -424,8 +442,8 @@ def render_result():
                     won(fuel["annual_fuel_cost"]),
                     won(fuel["annual_charge_cost"]),
                     won(fuel["saving"]),
-                    f"{config.DEFAULT_PRICE_GAP:,}원",
-                    won(bep["net_cost"]),
+                    won(price_gap),
+                    format_net_cost(bep["net_cost"]),
                     format_bep(bep["bep_years"]),
                 ],
             }
@@ -438,7 +456,7 @@ def render_result():
             "**데이터 출처**\n"
             "- 무공해차 통합누리집 (기후에너지환경부)\n"
             f"- 기준 시각 {base_date}\n"
-            "- 유가·충전요금·차량가격차이는 가정값입니다"
+            "- 유가·충전요금은 가정값이며, 차량 가격 차이는 사용자 입력값입니다"
         )
         st.caption(
             f"본 결과는 참고용입니다. 최종 확인은 관할 지자체"
