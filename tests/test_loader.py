@@ -76,6 +76,8 @@ def test_subsidy_rules_national_surcharges_and_no_contradiction():
                  "비율 방식(청년·취약계층)을 먼저 산정하고, 정액 방식(다자녀)을 마지막에 더함",
                  "소상공인 확인 방법"):
         assert fact in text
-    # 이제 자료에 있는 기준을 '자료에 없음/지자체별'로 적지 않는다
+    # 이제 자료에 있는 기준(다자녀 인원)은 '자료에 없음/지자체별'로 적지 않는다
     assert "다자녀 기준 자녀 인원" not in text
-    assert "청년 연령 기준" not in text
+    # 청년 20% 가산은 국비 공통이지만 연령 기준은 자료에 없으므로 지자체별 확인 항목으로 명시
+    local_section = text.split("## 지자체별로 다른 사항", 1)[1]
+    assert "- 청년 연령 기준" in local_section
