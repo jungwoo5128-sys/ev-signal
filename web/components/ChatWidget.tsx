@@ -198,7 +198,7 @@ export function ChatWidget({ region }: Props) {
         {showBubble && (
           <Image
             className="chat-fab-bubble"
-            src="/chat_mascot.png"
+            src="/chat_mascot_v2.png"
             alt=""
             width={280}
             height={208}
@@ -213,7 +213,7 @@ export function ChatWidget({ region }: Props) {
         ) : (
           <Image
             className="chat-fab-icon"
-            src="/mascot.png"
+            src="/mascot_v2.png"
             alt=""
             width={64}
             height={64}
