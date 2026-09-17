@@ -231,3 +231,22 @@ def test_notice_summary_no_api_key(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setattr(llm, "st", SimpleNamespace(secrets={}))
     assert llm.summarize_notice(NOTICE, True, MODEL) is None
+
+
+def test_timeouts_separate(monkeypatch):
+    """판정 설명은 5초, 공지 요약은 12초 타임아웃으로 클라이언트를 만든다."""
+    seen = []
+
+    def factory(**kw):
+        seen.append(kw["timeout"])
+        create = lambda **_: SimpleNamespace(
+            stop_reason="end_turn",
+            content=[SimpleNamespace(type="text", text='{"reason": "r", "caution": "", "items": []}')],
+        )
+        return SimpleNamespace(messages=SimpleNamespace(create=create))
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setattr(llm.anthropic, "Anthropic", factory)
+    llm.generate_reason("GREEN", [], CTX, CALC)
+    llm.summarize_notice(NOTICE, True, MODEL)
+    assert seen == [5, 12]

@@ -11,7 +11,7 @@ import anthropic
 import streamlit as st
 from dotenv import load_dotenv
 
-from config import LLM_TIMEOUT
+from config import LLM_TIMEOUT, NOTICE_LLM_TIMEOUT
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
@@ -138,9 +138,15 @@ def _api_key() -> str:
         return ""
 
 
-def _complete(api_key: str, system: str, user_message: str, max_tokens: int = 1024) -> str:
+def _complete(
+    api_key: str,
+    system: str,
+    user_message: str,
+    timeout: float = LLM_TIMEOUT,
+    max_tokens: int = 1024,
+) -> str:
     """한 번의 Messages API 호출. 실패는 예외로 올린다 (호출부에서 폴백 처리)."""
-    client = anthropic.Anthropic(api_key=api_key, timeout=LLM_TIMEOUT, max_retries=0)
+    client = anthropic.Anthropic(api_key=api_key, timeout=timeout, max_retries=0)
     response = client.messages.create(
         model=MODEL,
         max_tokens=max_tokens,
@@ -152,11 +158,11 @@ def _complete(api_key: str, system: str, user_message: str, max_tokens: int = 10
     return "".join(b.text for b in response.content if b.type == "text")
 
 
-def _log_failure(label: str, error: Exception) -> None:
+def _log_failure(label: str, error: Exception, timeout: float = LLM_TIMEOUT) -> None:
     if isinstance(error, anthropic.AuthenticationError):
         logger.warning("%s: 잘못된 API 키", label)
     elif isinstance(error, anthropic.APITimeoutError):
-        logger.warning("%s: 타임아웃 (%ss)", label, LLM_TIMEOUT)
+        logger.warning("%s: 타임아웃 (%ss)", label, timeout)
     elif isinstance(error, anthropic.APIConnectionError):
         logger.warning("%s: 네트워크 오류", label)
     elif isinstance(error, anthropic.APIStatusError):
@@ -217,6 +223,11 @@ NOTICE_SYSTEM_PROMPT = """당신은 지자체 전기차 보조금 공지사항�
 - 단순 인사말, 사과, 감사 표현
 
 규칙:
+- 공지문에는 여러 시점의 안내가 누적되어 있을 수 있습니다.
+  일반적으로 위쪽에 있는 내용이 더 최신입니다.
+  같은 사안에 대해 서로 다른 내용이 있으면 위쪽(최신) 내용을 사용하고,
+  아래쪽의 지난 내용은 무시하세요.
+  날짜가 명시된 경우 더 나중 날짜의 안내를 우선하세요.
 - 원문에 없는 내용을 추가하지 마세요.
 - 원문의 숫자·날짜를 바꾸거나 계산하지 마세요. 원문 표기를 그대로 쓰세요.
 - 사용자 조건(폐차 예정 여부, 관심 모델)과 관련된 내용을 우선하세요.
@@ -259,12 +270,13 @@ def summarize_notice(notice, has_scrap: bool, model: str):
         indent=2,
     )
     try:
-        data = json.loads(CODE_FENCE_RE.sub("", _complete(api_key, NOTICE_SYSTEM_PROMPT, user_message).strip()))
+        text = _complete(api_key, NOTICE_SYSTEM_PROMPT, user_message, timeout=NOTICE_LLM_TIMEOUT)
+        data = json.loads(CODE_FENCE_RE.sub("", text.strip()))
         items = data.get("items") if isinstance(data, dict) else None
         if not isinstance(items, list):
             raise ValueError("items 누락")
     except Exception as e:
-        _log_failure("공지 요약 생략", e)
+        _log_failure("공지 요약 생략", e, timeout=NOTICE_LLM_TIMEOUT)
         return None
 
     allowed = _digit_groups(str(notice)) | _digit_groups(model or "")
