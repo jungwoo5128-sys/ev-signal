@@ -31,6 +31,7 @@ TIMING_COLORS = {
 
 LONG_TRIP_OPTIONS = ["거의없음", "월1~2회", "월3회이상"]
 HOUSING_OPTIONS = ["아파트", "단독", "빌라·오피스텔"]
+WORK_CHARGER_OPTIONS = ["있음", "없음", "해당없음"]
 HOLD_OPTIONS = {3: "3년", 5: "5년", 7: "7년 이상"}
 
 DEFAULTS = {
@@ -40,6 +41,7 @@ DEFAULTS = {
     "region": None,
     "housing": "아파트",
     "home_charger": True,
+    "work_charger": "없음",
     "hold_years": 7,
     "model": None,
     "current_efficiency": 11.2,
@@ -53,6 +55,7 @@ EXAMPLE_PROFILE = {
     "region": "성남시",
     "housing": "아파트",
     "home_charger": True,
+    "work_charger": "없음",
     "hold_years": 7,
     "model": "더 뉴 아이오닉5 2WD 롱레인지 19인치",
     "current_efficiency": 11.2,
@@ -149,11 +152,18 @@ def render_input():
         )
         ss.housing = st.selectbox("주거 형태", HOUSING_OPTIONS, key=bind("housing"))
         ss.home_charger = st.radio(
-            "자가 충전기 설치",
+            "주거지 충전기",
             [True, False],
-            format_func=lambda v: "가능" if v else "불가",
+            format_func=lambda v: "있음" if v else "없음",
             horizontal=True,
             key=bind("home_charger"),
+        )
+        ss.work_charger = st.radio(
+            "근무지 충전기",
+            WORK_CHARGER_OPTIONS,
+            horizontal=True,
+            help="재택근무·무직 등은 '해당없음'을 선택하세요. 판정에서는 '없음'과 같습니다.",
+            key=bind("work_charger"),
         )
 
     with right:
@@ -330,6 +340,7 @@ def render_result():
         bep_years=bep["bep_years"],
         hold_years=ss.hold_years,
         home_charger=ss.home_charger,
+        work_charger=ss.work_charger == "있음",  # '해당없음'은 '없음'과 동일
         housing=ss.housing,
         long_trip=ss.long_trip,
         range_cold=model_info["range_cold"],

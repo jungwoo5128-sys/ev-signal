@@ -14,7 +14,7 @@ from src import llm  # noqa: E402
 from src.judge import JudgeContext  # noqa: E402
 
 CTX = JudgeContext(
-    bep_years=4.1187, hold_years=7, home_charger=True, housing="아파트",
+    bep_years=4.1187, hold_years=7, home_charger=True, work_charger=False, housing="아파트",
     long_trip="월3회이상", range_cold=369, annual_km=15000,
 )
 CALC = {
