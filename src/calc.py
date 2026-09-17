@@ -64,7 +64,7 @@ def calc_efficiency(battery_kwh, range_normal) -> float:
 
 
 def calc_fuel_saving(annual_km, current_efficiency, ev_efficiency) -> dict:
-    """연간 유류비, 충전비, 절감액(원)."""
+    """연간 유류비, 충전비, 절감액(원). current_efficiency는 비교 내연기관차 연비(km/L)."""
     annual_fuel_cost = (annual_km / current_efficiency) * GASOLINE_PRICE
     annual_charge_cost = (annual_km / ev_efficiency) * CHARGING_PRICE
     return {

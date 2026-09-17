@@ -266,14 +266,6 @@ function StepVehicle({
         onChange={onSelectModel}
       />
       {loaded && !list.length && <p className="notice-inline">이 지역은 지원 모델 정보가 없습니다</p>}
-      <NumberField
-        label="현재 차량 연비"
-        unit="km/L"
-        step={0.1}
-        decimal
-        value={profile.current_efficiency}
-        onChange={(v) => setProfile({ current_efficiency: v })}
-      />
       <div className="field-row">
         <NumberField
           label="관심 전기차 가격"
@@ -294,6 +286,16 @@ function StepVehicle({
           onChange={(v) => setProfile({ ice_price_manwon: v })}
         />
       </div>
+      {/* 절감액(분모)도 실제 추가 부담(분자)과 같은 비교 내연기관차 기준이어야 BEP가 맞는다 */}
+      <NumberField
+        label="비교 내연기관차 연비"
+        help="전기차 대신 구매를 고려하는 내연기관차의 연비입니다"
+        unit="km/L"
+        step={0.1}
+        decimal
+        value={profile.current_efficiency}
+        onChange={(v) => setProfile({ current_efficiency: v })}
+      />
       <Toggle
         label="현재 차량 폐차 또는 매도 예정"
         checked={profile.has_scrap}

@@ -35,7 +35,7 @@ class EvaluateInput(BaseModel):
     work_charger: WorkCharger
     hold_years: Literal[3, 5, 7]
     model: str
-    current_efficiency: float = Field(gt=0)
+    current_efficiency: float = Field(gt=0)  # 비교 내연기관차 연비(km/L). 필드명은 API 호환을 위해 유지
     ev_price_manwon: int = Field(ge=0)
     ice_price_manwon: int = Field(ge=0)
     has_scrap: bool
@@ -245,7 +245,7 @@ def evaluate(store: Store, inp: EvaluateInput) -> dict:
         "cards": {
             "fuel_saving": {
                 "value": won_k(fuel["saving"]),
-                "note": f"연 {ev.driving.annual_km:,}km · 연비 {inp.current_efficiency}km/L 기준",
+                "note": f"연 {ev.driving.annual_km:,}km · 내연기관차 {inp.current_efficiency}km/L 기준",
             },
             "subsidy": {"value": won(subsidy_amount), "note": breakdown},
             "payback": {
@@ -279,7 +279,7 @@ def evaluate(store: Store, inp: EvaluateInput) -> dict:
             ],
             "running_cost": [
                 {"label": "연간 주행거리", "value": f"{ev.driving.annual_km:,}km", "note": ev.driving.source_note},
-                {"label": "현재 차량 연간 유류비", "value": won_k(fuel["annual_fuel_cost"]), "note": ""},
+                {"label": "내연기관차 연간 유류비", "value": won_k(fuel["annual_fuel_cost"]), "note": ""},
                 {"label": "전기차 연간 충전비", "value": won_k(fuel["annual_charge_cost"]), "note": ""},
                 {"label": "연간 절감액", "value": won_k(fuel["saving"]), "note": ""},
             ],

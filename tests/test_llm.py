@@ -191,7 +191,7 @@ def test_only_conditions_mentioned_in_reasons(reasons, extra_keys):
 def test_charger_only_reason_excludes_trip_and_commute():
     keys = set(_conditions([("block", "주거지·근무지 모두 충전 불가 — 공용 충전에 전적으로 의존")],
                            home_charger=False, work_charger=False))
-    assert not keys & {"장거리 주행 빈도", "출퇴근 왕복 거리", "겨울철 주행거리", "현재 차량 연비"}
+    assert not keys & {"장거리 주행 빈도", "출퇴근 왕복 거리", "겨울철 주행거리", "비교 내연기관차 연비"}
 
 
 # --- 지자체 공지사항 요약 ---------------------------------------------------
