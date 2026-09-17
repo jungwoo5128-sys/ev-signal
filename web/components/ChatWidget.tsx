@@ -34,15 +34,9 @@ export function ChatWidget({ region }: Props) {
   const [waiting, setWaiting] = useState(false);
   const [mascotFailed, setMascotFailed] = useState(false);
   const [bubbleFailed, setBubbleFailed] = useState(false);
-  // 패널을 한 번이라도 열었으면 말풍선 버전은 더 이상 띄우지 않는다
-  const [introSeen, setIntroSeen] = useState(false);
+  // 패널이 열려 있는 동안만 작은 아이콘(말풍선이 패널을 가리므로), 닫히면 말풍선 버전.
   // 좁은 화면에서는 CSS(@media)가 말풍선을 숨기고 작은 아이콘을 보여준다
-  const showBubble = !open && !introSeen && !bubbleFailed;
-
-  const togglePanel = () => {
-    if (!open) setIntroSeen(true);
-    setOpen(!open);
-  };
+  const showBubble = !open && !bubbleFailed;
 
   // 지자체가 바뀌면 근거(공지)가 달라지므로 대화를 초기화하고, 진행 중인 답변은 버린다.
   // (렌더 중 이전 값과 비교해 상태를 조정하는 React 권장 방식)
@@ -189,7 +183,7 @@ export function ChatWidget({ region }: Props) {
       <button
         type="button"
         className={`chat-fab ${showBubble ? "is-bubble" : ""}`}
-        onClick={togglePanel}
+        onClick={() => setOpen((v) => !v)}
         aria-label={open ? "보조금 자격 문의 닫기" : "보조금 자격 문의 열기"}
         aria-expanded={open}
         aria-controls={panelId}
