@@ -406,3 +406,14 @@ def test_chat_prompt_forbids_eligibility_judgment(monkeypatch):
     system = captured["system"]
     assert "자격 요건을 충족하는지 판단하지 마세요" in system
     assert "'해당합니다', '해당할 수 있습니다', '대상입니다'" in system
+
+
+def test_chat_prompt_source_label_and_negative_inference(monkeypatch):
+    captured = chat_client(monkeypatch, text="답변입니다.")
+    llm.answer_eligibility("질문", [], "성남시", CHAT_NOTICE, RULES)
+    system = captured["system"]
+    assert "환경부 공통 지침" not in system
+    assert "무공해차 통합누리집 공통 안내에 따르면" in system
+    assert "규정 파일 상단에 적힌 출처명을 사용하세요" in system
+    assert "'없다'가 아니라 '자료에 없다'입니다" in system
+    assert "성남시는 출고·등록순으로 선정한다고 공지되어 있습니다" in system

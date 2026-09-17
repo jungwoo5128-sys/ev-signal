@@ -64,11 +64,12 @@ def test_schema_signature_changes_with_columns(monkeypatch):
     assert loader.schema_signature() != before
 
 
-def test_subsidy_rules_document_sections():
+def test_subsidy_rules_document_loaded():
+    """규정 문서 내용은 사용자가 관리하므로 섹션 구성은 고정하지 않고, 챗봇이 쓰는 요소만 확인한다."""
     text = loader.load_subsidy_rules()
-    for heading in ("# 2026년 전기차 보조금 공통 규정", "## 우선순위 대상", "## 국비 가산",
-                    "## 전환지원금", "## 지자체별로 다른 사항"):
-        assert heading in text
+    assert text.startswith("# 2026년 전기차 보조금 공통 규정")
+    assert "출처:" in text  # 챗봇이 출처명을 이 줄에서 가져온다
+    assert "## 지자체별로 다른 사항" in text
 
 
 def test_subsidy_rules_missing_file(tmp_path):
