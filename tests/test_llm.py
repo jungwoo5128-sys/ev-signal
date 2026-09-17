@@ -95,10 +95,17 @@ def test_unknown_number_in_caution_falls_back(monkeypatch):
 
 
 def test_allowed_numbers_pass(monkeypatch):
-    reason = ("연 15,000km, 연비 11.2km/L 기준 1,408,000원 절감, 보조금 10,200,000원, "
-              "실부담 5,800,000원, 4.1년 회수. 83.6kWh·462km/369km, CO2 1.85톤, 280그루, 보유 7년.")
+    reason = ("연 15,000km 기준 1,408,000원 절감, 보조금 10,200,000원, "
+              "실부담 5,800,000원, 4.1년 회수. CO2 1.85톤, 280그루, 보유 7년.")
     fake_client(monkeypatch, text=f'{{"reason": "{reason}", "caution": ""}}')
     assert llm.generate_reason("GREEN", [], CTX, CALC)["fallback"] is False
+
+
+def test_numbers_outside_reasons_not_allowed(monkeypatch):
+    """사유에 없는 조건(겨울철 369km, 가격 52,000,000원)은 전달하지 않으므로 인용하면 폴백."""
+    for reason in ("겨울철 주행거리 369km라 불리합니다.", "전기차 가격 52,000,000원입니다."):
+        fake_client(monkeypatch, text=f'{{"reason": "{reason}", "caution": ""}}')
+        assert llm.generate_reason("GREEN", [], CTX, CALC)["fallback"] is True
 
 
 def test_api_key_from_secrets(monkeypatch):
@@ -161,8 +168,43 @@ def test_refusal_falls_back(monkeypatch):
 def test_numbers_passed_as_display_strings():
     message = llm._build_user_message("GREEN", [], CTX, CALC)
     for expected in ("1,408,000원", "10,200,000원", "1.85톤", "280그루", "5,800,000원", "4.1년",
-                     "52,000,000원", "36,000,000원", "16,000,000원"):
+                     "15,000km", "7년"):
         assert expected in message
+
+
+def _conditions(reasons, **ctx_changes):
+    from dataclasses import replace
+    import json
+    message = llm._build_user_message("RED", reasons, replace(CTX, **ctx_changes), CALC)
+    return json.loads(message)["사용자 조건 (문맥 이해용, 판정 근거 아님)"]
+
+
+BASE_KEYS = {"연간 주행거리", "예상 보유 기간"}
+
+
+@pytest.mark.parametrize("reasons, extra_keys", [
+    ([], set()),
+    ([("block", "주거지·근무지 모두 충전 불가 — 공용 충전에 전적으로 의존")],
+     {"주거지 충전기", "근무지 충전기"}),
+    ([("warn", "주거지 충전 불가 — 근무지 충전에 의존"),
+      ("warn", "출퇴근 왕복 80km + 주거지 충전 불가 — 공용 충전 의존도 높음")],
+     {"주거지 충전기", "근무지 충전기", "출퇴근 왕복 거리"}),
+    ([("warn", "겨울철 주행거리 330km — 장거리 시 충전 필요")],
+     {"장거리 주행 빈도", "겨울철 주행거리"}),
+    ([("block", "보유 예정 3년 내 회수 불가 (BEP 4.1년)")],
+     {"관심 전기차 가격", "비교 내연기관차 가격", "차량 가격 차이"}),
+    ([("block", "절감액이 없어 회수 불가")],
+     {"관심 전기차 가격", "비교 내연기관차 가격", "차량 가격 차이"}),
+    ([("warn", "연간 주행거리가 적어 절감 효과 제한적")], set()),
+])
+def test_only_conditions_mentioned_in_reasons(reasons, extra_keys):
+    assert set(_conditions(reasons)) == BASE_KEYS | extra_keys
+
+
+def test_charger_only_reason_excludes_trip_and_commute():
+    keys = set(_conditions([("block", "주거지·근무지 모두 충전 불가 — 공용 충전에 전적으로 의존")],
+                           home_charger=False, work_charger=False))
+    assert not keys & {"장거리 주행 빈도", "출퇴근 왕복 거리", "겨울철 주행거리", "현재 차량 연비"}
 
 
 # --- 지자체 공지사항 요약 ---------------------------------------------------

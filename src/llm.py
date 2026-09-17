@@ -30,7 +30,12 @@ SYSTEM_PROMPT = """당신은 전기차 전환 판정 결과를 사용자에게 �
 
 규칙:
 - 주어진 등급을 절대 바꾸지 마세요. 등급과 사유는 이미 규칙 엔진이 확정했습니다.
-- 사유 리스트에 없는 새 판단이나 조건을 추가하지 마세요.
+- 판정 사유 목록에 없는 새 판단이나 조건을 추가하지 마세요.
+- reason은 제공된 '판정 사유 목록'에 있는 항목과 계산 결과만 근거로 쓰세요.
+  사용자 조건은 문맥 이해용으로 제공되는 것이며,
+  사유 목록에 없는 조건을 판정의 이유로 언급하지 마세요.
+  예: 사유 목록에 충전 환경만 있다면, 주행거리나 출퇴근 거리를
+  불리한 근거로 들지 마세요.
 - reason에는 제공된 숫자만 사용하고, 새로운 수치를 계산하거나 추정하지 마세요.
 - 숫자는 입력에 적힌 문자열을 그대로 인용하세요. 반올림하거나 단위를 바꾸지 마세요.
 - 단정형을 쓰지 말고 권고형을 사용하세요. ("사세요" ✗ / "권장합니다" ○)
@@ -66,6 +71,31 @@ def _format_bep(years: float) -> str:
     return f"{years:.1f}년"
 
 
+def _relevant_conditions(reasons, ctx, inputs) -> dict:
+    """판정 사유에 언급된 조건만 추린다. 사유 밖 조건을 LLM이 근거로 오용하지 않게 하기 위함.
+
+    연간 주행거리·보유 기간은 계산 결과 설명에 필요해 항상 포함한다.
+    """
+    texts = " ".join(text for _, text in reasons)
+    conditions = {
+        "연간 주행거리": f"{ctx.annual_km:,}km",
+        "예상 보유 기간": f"{ctx.hold_years}년",
+    }
+    if "회수" in texts:
+        conditions["관심 전기차 가격"] = f"{inputs.get('ev_price') or 0:,.0f}원"
+        conditions["비교 내연기관차 가격"] = f"{inputs.get('ice_price') or 0:,.0f}원"
+        conditions["차량 가격 차이"] = f"{inputs.get('price_gap') or 0:,.0f}원"
+    if "충전 불가" in texts:
+        conditions["주거지 충전기"] = "있음" if ctx.home_charger else "없음"
+        conditions["근무지 충전기"] = "있음" if ctx.work_charger else "없음"
+    if "출퇴근" in texts:
+        conditions["출퇴근 왕복 거리"] = f"{ctx.commute_km:,}km"
+    if "겨울철 주행거리" in texts:
+        conditions["장거리 주행 빈도"] = ctx.long_trip
+        conditions["겨울철 주행거리"] = f"{ctx.range_cold}km"
+    return conditions
+
+
 def _build_user_message(grade, reasons, ctx, calc_results) -> str:
     """숫자는 화면 표기와 같은 문자열로 포맷해 전달한다 (LLM 재계산 방지)."""
     fuel = calc_results["fuel"]
@@ -75,32 +105,16 @@ def _build_user_message(grade, reasons, ctx, calc_results) -> str:
     inputs = calc_results.get("inputs", {})
 
     payload = {
-        "등급": grade,
-        "사유": [{"심각도": s, "설명": t} for s, t in reasons] or [],
-        "사용자 조건": {
-            "연간 주행거리": f"{ctx.annual_km:,}km",
-            "출퇴근 왕복 거리": f"{ctx.commute_km:,}km",
-            "현재 차량 연비": f"{inputs.get('current_efficiency')}km/L",
-            "관심 전기차 가격": f"{inputs.get('ev_price') or 0:,.0f}원",
-            "비교 내연기관차 가격": f"{inputs.get('ice_price') or 0:,.0f}원",
-            "차량 가격 차이": f"{inputs.get('price_gap') or 0:,.0f}원",
-            "예상 보유 기간": f"{ctx.hold_years}년",
-            "주거지 충전기": "있음" if ctx.home_charger else "없음",
-            "근무지 충전기": "있음" if ctx.work_charger else "없음",
-            "장거리 주행 빈도": ctx.long_trip,
-        },
-        "차량 제원": {
-            "배터리": f"{inputs.get('battery_kwh')}kWh",
-            "상온 주행거리": f"{inputs.get('range_normal')}km",
-            "겨울철 주행거리": f"{ctx.range_cold}km",
-        },
+        "판정 등급": grade,
+        "판정 사유 목록": [{"심각도": s, "설명": t} for s, t in reasons],
+        "사용자 조건 (문맥 이해용, 판정 근거 아님)": _relevant_conditions(reasons, ctx, inputs),
         "계산 결과": {
             "연간 연료비 절감": f"{round(fuel['saving'], -3):,.0f}원",
             "예상 보조금": f"{subsidy['subsidy'] or 0:,.0f}원",
-            "연간 CO2 감축량": f"{co2['reduction_ton']:.2f}톤",
-            "소나무 환산": f"{co2['pine_trees']:.0f}그루",
             "보조금 차감 후 실부담": f"{bep['net_cost']:,.0f}원",
             "회수 기간": _format_bep(bep["bep_years"]),
+            "연간 CO2 감축량": f"{co2['reduction_ton']:.2f}톤",
+            "소나무 환산": f"{co2['pine_trees']:.0f}그루",
         },
     }
     return json.dumps(payload, ensure_ascii=False, indent=2)
