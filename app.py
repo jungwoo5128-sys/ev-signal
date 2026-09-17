@@ -458,6 +458,65 @@ def render_notice(placeholder, region, notice):
                 )
 
 
+CHAT_EXAMPLES = [
+    "다자녀 가구는 어떤 혜택이 있나요?",
+    "생애 최초 구매자 조건이 뭔가요?",
+    "우선순위로 신청하려면 뭘 준비해야 하나요?",
+]
+
+
+def ask_example(question):
+    ss.chat_example = question
+
+
+def render_eligibility_chat(region, status):
+    """보조금 자격 문의 (판정과 무관한 정보 제공).
+
+    대화 기록만 그리고, 새 질문이 있으면 답변 자리만 잡아 둔다.
+    실제 LLM 호출은 페이지 맨 끝(answer_pending_question)에서 한다.
+    """
+    histories = ss.setdefault("chat_history", {})
+    history = histories.setdefault(region, [])  # 지자체마다 근거(공지)가 달라 기록을 분리
+    pending = None
+
+    with st.expander("보조금 자격 문의", expanded=bool(history)):
+        with st.container(key="eligibility_chat"):
+            st.caption("다자녀, 생애최초, 소상공인 등 추가 지원 자격을 물어보세요")
+            columns = st.columns(len(CHAT_EXAMPLES))
+            for i, (column, example) in enumerate(zip(columns, CHAT_EXAMPLES)):
+                with column:
+                    st.button(example, key=f"chat_example_{i}", on_click=ask_example, args=(example,))
+
+            for message in history:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
+
+            question = st.chat_input("질문을 입력하세요", key="chat_input") or ss.pop("chat_example", None)
+            if question:
+                with st.chat_message("user"):
+                    st.markdown(question)
+                with st.chat_message("assistant"):
+                    slot = st.empty()
+                    slot.caption("답변을 작성하는 중...")
+                pending = (question, slot)
+
+            contact = " ".join(str(v) for v in (status["담당부서"], status["연락처"]) if v) or "담당 부서"
+            st.caption(f"본 답변은 참고용입니다. 최종 확인은 관할 지자체({contact})")
+    return pending
+
+
+def answer_pending_question(pending, region, notice):
+    """판정·공지 요약이 모두 표시된 뒤 호출해, 챗봇이 판정 표시를 지연시키지 않게 한다."""
+    if not pending:
+        return
+    question, slot = pending
+    history = ss.chat_history[region]
+    result = llm.answer_eligibility(question, history, region, notice, loader.load_subsidy_rules())
+    slot.markdown(result["answer"])
+    history.append({"role": "user", "content": question})
+    history.append({"role": "assistant", "content": result["answer"]})
+
+
 def card(title, value, note):
     st.markdown(
         f'<div class="evs-card">'
@@ -622,11 +681,16 @@ def render_result():
             unsafe_allow_html=True,
         )
 
+    # 5-1) 보조금 자격 문의 챗봇 — 판정과 분리, 답변은 맨 끝에서 채운다
+    pending_question = render_eligibility_chat(ss.region, status)
+
     # 6) 하단
     st.button("다시 입력하기", on_click=back_to_input)
 
     # 판정·카드·근거가 모두 표시된 뒤 공지 요약을 채운다
     render_notice(notice_placeholder, ss.region, status["notice"])
+    # 챗봇 답변은 가장 마지막에
+    answer_pending_question(pending_question, ss.region, status["notice"])
 
 
 if ss.step == "result":

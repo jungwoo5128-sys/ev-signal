@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+SUBSIDY_RULES_PATH = DATA_DIR / "subsidy_rules.md"
 FILE_PATTERN = re.compile(r"무공해차_보조금현황_2026_(\d{4}-\d{2}-\d{2})\.xlsx$")
 
 SUMMARY_SHEET = "요약"
@@ -96,6 +97,14 @@ def load_data(path=None) -> tuple[pd.DataFrame, pd.DataFrame]:
         models[dst] = pd.to_numeric(models[src], errors="coerce").astype("Int64") * 10000
 
     return summary, models
+
+
+def load_subsidy_rules(path: Path = SUBSIDY_RULES_PATH) -> str:
+    """보조금 공통 규정 문서(챗봇 근거). 파일이 없으면 빈 문자열."""
+    try:
+        return path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return ""
 
 
 def schema_signature() -> tuple:

@@ -11,7 +11,7 @@ import anthropic
 import streamlit as st
 from dotenv import load_dotenv
 
-from config import LLM_TIMEOUT, NOTICE_LLM_TIMEOUT
+from config import CHAT_LLM_TIMEOUT, LLM_TIMEOUT, NOTICE_LLM_TIMEOUT
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
@@ -154,17 +154,21 @@ def _api_key() -> str:
 def _complete(
     api_key: str,
     system: str,
-    user_message: str,
+    user_message: str | None = None,
     timeout: float = LLM_TIMEOUT,
     max_tokens: int = 1024,
+    messages: list[dict] | None = None,
 ) -> str:
-    """한 번의 Messages API 호출. 실패는 예외로 올린다 (호출부에서 폴백 처리)."""
+    """한 번의 Messages API 호출. 실패는 예외로 올린다 (호출부에서 폴백 처리).
+
+    단일 질문은 user_message, 대화 기록이 있으면 messages로 전달한다.
+    """
     client = anthropic.Anthropic(api_key=api_key, timeout=timeout, max_retries=0)
     response = client.messages.create(
         model=MODEL,
         max_tokens=max_tokens,
         system=system,
-        messages=[{"role": "user", "content": user_message}],
+        messages=messages or [{"role": "user", "content": user_message}],
     )
     if response.stop_reason == "refusal":
         raise ValueError("refusal")
@@ -310,3 +314,81 @@ def summarize_notice(notice, has_scrap: bool, model: str):
             continue
         result.append(item.strip())
     return result[:MAX_NOTICE_ITEMS]
+
+
+
+# --- 보조금 자격 문의 챗봇 -------------------------------------------------
+# 판정(judge)과 무관한 정보 제공용. 근거 문서(공통 규정 + 지자체 공지)에서만 답한다.
+
+CHAT_SYSTEM_PROMPT = """당신은 전기차 보조금 자격 정보를 안내합니다.
+아래 '공통 규정'과 '지자체 공지'에 있는 내용만으로 답하세요.
+
+- 두 근거에 없는 금액, 비율, 기준을 만들어내지 마세요
+- 근거에 없는 질문에는 '제공된 자료에 해당 내용이 없습니다.
+  관할 지자체에 확인이 필요합니다'라고 답하세요
+- 지자체마다 기준이 다른 사항은 그렇다고 명시하세요
+- 금액이나 비율을 답할 때는 출처를 밝히세요
+  (예: '환경부 공통 지침에 따르면', '{region} 공지에 따르면')
+- 구매를 권유하거나 만류하지 마세요
+- 2~4문장으로 간결하게
+
+<공통 규정>
+{rules}
+</공통 규정>
+
+<지자체 공지 지자체="{region}">
+{notice}
+</지자체 공지>"""
+
+CHAT_UNAVAILABLE = "일시적으로 답변할 수 없습니다."
+CHAT_NUMBER_REPLACEMENT = "정확한 금액은 관할 지자체에 확인해 주세요."
+CHAT_MAX_TURNS = 6
+SENTENCE_RE = re.compile(r"(?<=[.!?。])\s+|\n+")
+
+
+def _replace_unsupported_sentences(answer: str, allowed: set[str]) -> str:
+    """근거에 없는 숫자가 든 문장을 안내 문구로 바꾼다 (공지 요약과 같은 숫자 검증)."""
+    result = []
+    for sentence in (s.strip() for s in SENTENCE_RE.split(answer)):
+        if not sentence:
+            continue
+        unknown = _digit_groups(sentence) - allowed
+        if unknown:
+            logger.warning("챗봇 문장 대체: 근거에 없는 숫자 %s", sorted(unknown))
+            sentence = CHAT_NUMBER_REPLACEMENT
+        if not (result and result[-1] == sentence == CHAT_NUMBER_REPLACEMENT):
+            result.append(sentence)
+    return " ".join(result)
+
+
+def answer_eligibility(question: str, history: list[dict], region: str, notice, rules: str) -> dict:
+    """보조금 자격 질문에 근거 문서만으로 답한다.
+
+    history: [{"role": "user"|"assistant", "content": str}, ...] (이번 질문 제외)
+    반환: {"answer": str, "ok": bool}
+    """
+    question = (question or "").strip()
+    if not question:
+        return {"answer": CHAT_UNAVAILABLE, "ok": False}
+    api_key = _api_key()
+    if not api_key:
+        logger.warning("챗봇 응답 불가: ANTHROPIC_API_KEY 없음")
+        return {"answer": CHAT_UNAVAILABLE, "ok": False}
+
+    notice_text = str(notice).strip() if notice else "(공지 원문 없음)"
+    system = CHAT_SYSTEM_PROMPT.format(rules=rules or "(내용 없음)", notice=notice_text, region=region)
+    recent = [m for m in history if m.get("role") in ("user", "assistant") and m.get("content")]
+    messages = recent[-CHAT_MAX_TURNS * 2:] + [{"role": "user", "content": question}]
+    while messages and messages[0]["role"] != "user":  # 첫 메시지는 user여야 한다
+        messages = messages[1:]
+
+    try:
+        answer = _complete(api_key, system, timeout=CHAT_LLM_TIMEOUT, messages=messages).strip()
+        if not answer:
+            raise ValueError("빈 응답")
+    except Exception as e:
+        _log_failure("챗봇 응답 불가", e, timeout=CHAT_LLM_TIMEOUT)
+        return {"answer": CHAT_UNAVAILABLE, "ok": False}
+
+    allowed = _digit_groups(rules or "") | _digit_groups(notice_text) | _digit_groups(region or "")
+    return {"answer": _replace_unsupported_sentences(answer, allowed), "ok": True}

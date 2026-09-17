@@ -292,3 +292,81 @@ def test_timeouts_separate(monkeypatch):
     llm.generate_reason("GREEN", [], CTX, CALC)
     llm.summarize_notice(NOTICE, True, MODEL)
     assert seen == [5, 12]
+
+
+# --- 보조금 자격 문의 챗봇 --------------------------------------------------
+
+RULES = "# 공통 규정\n## 우선순위 대상\n- 다자녀 가구: 자녀 2명 이상\n## 국비 가산\n- 차상위 이하 30% 추가"
+CHAT_NOTICE = "★전기승용 약 440대 가능★\n* 출고 10일 이내 차량에 한하여 신청"
+
+
+def chat_client(monkeypatch, text=None, error=None):
+    captured = {}
+
+    def create(**kwargs):
+        captured.update(kwargs)
+        if error:
+            raise error
+        return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=text)])
+
+    def factory(**kw):
+        captured["timeout"] = kw["timeout"]
+        return SimpleNamespace(messages=SimpleNamespace(create=create))
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setattr(llm.anthropic, "Anthropic", factory)
+    return captured
+
+
+def test_chat_answer_with_grounded_numbers(monkeypatch):
+    captured = chat_client(monkeypatch, text="환경부 공통 지침에 따르면 차상위 이하는 30% 추가됩니다. 성남시 공지에 따르면 출고 10일 이내 차량만 신청할 수 있습니다.")
+    result = llm.answer_eligibility("차상위 혜택은?", [], "성남시", CHAT_NOTICE, RULES)
+    assert result["ok"] is True
+    assert "30%" in result["answer"] and "10일" in result["answer"]
+    assert captured["timeout"] == 15
+    assert RULES in captured["system"] and CHAT_NOTICE in captured["system"] and "성남시" in captured["system"]
+
+
+def test_chat_replaces_sentence_with_unknown_number(monkeypatch, caplog):
+    chat_client(monkeypatch, text="다자녀 가구는 100만원을 추가로 받습니다. 자세한 기준은 지자체마다 다릅니다.")
+    result = llm.answer_eligibility("다자녀 혜택은?", [], "성남시", CHAT_NOTICE, RULES)
+    assert result["answer"] == "정확한 금액은 관할 지자체에 확인해 주세요. 자세한 기준은 지자체마다 다릅니다."
+    assert "근거에 없는 숫자" in caplog.text and "100" in caplog.text
+
+
+def test_chat_empty_rules_no_numbers_kept(monkeypatch):
+    chat_client(monkeypatch, text="제공된 자료에 해당 내용이 없습니다. 관할 지자체에 확인이 필요합니다.")
+    result = llm.answer_eligibility("다자녀 혜택은?", [], "성남시", CHAT_NOTICE, "# 공통 규정\n## 우선순위 대상\n")
+    assert result == {"answer": "제공된 자료에 해당 내용이 없습니다. 관할 지자체에 확인이 필요합니다.", "ok": True}
+
+
+def test_chat_history_limited_to_six_turns(monkeypatch):
+    captured = chat_client(monkeypatch, text="답변입니다.")
+    history = []
+    for i in range(10):
+        history += [{"role": "user", "content": f"질문{i}"}, {"role": "assistant", "content": f"답변{i}"}]
+    llm.answer_eligibility("새 질문", history, "성남시", CHAT_NOTICE, RULES)
+    messages = captured["messages"]
+    assert len(messages) == 6 * 2 + 1
+    assert messages[0] == {"role": "user", "content": "질문4"}
+    assert messages[-1] == {"role": "user", "content": "새 질문"}
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"error": anthropic.APITimeoutError(request=REQUEST)},
+    {"error": anthropic.APIConnectionError(request=REQUEST)},
+    {"text": ""},
+])
+def test_chat_failure_returns_unavailable(monkeypatch, kwargs):
+    chat_client(monkeypatch, **kwargs)
+    assert llm.answer_eligibility("질문", [], "성남시", CHAT_NOTICE, RULES) == {
+        "answer": "일시적으로 답변할 수 없습니다.", "ok": False}
+
+
+def test_chat_without_notice_or_key(monkeypatch):
+    captured = chat_client(monkeypatch, text="제공된 자료에 해당 내용이 없습니다.")
+    assert llm.answer_eligibility("질문", [], "의령군", None, RULES)["ok"] is True
+    assert "(공지 원문 없음)" in captured["system"]
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(llm, "st", SimpleNamespace(secrets={}))
+    assert llm.answer_eligibility("질문", [], "성남시", CHAT_NOTICE, RULES)["ok"] is False
