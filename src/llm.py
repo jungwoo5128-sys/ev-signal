@@ -449,10 +449,14 @@ INTENTS = ("eligibility", "explain", "what_if", "off_topic")
 INTENT_SYSTEM_PROMPT = """사용자는 전기차 전환 판정 결과를 이미 받은 상태입니다.
 질문을 아래 중 하나로 분류하세요.
 
-- eligibility: 보조금 자격·우대 대상·신청 절차·서류·지자체 공지·지역 충전소 현황에 대한 질문
+- eligibility: 보조금 자격·우대 대상·신청 절차·서류·지자체 공지에 대한 질문,
+  지역의 충전소 개수·위치를 묻는 질문
 - explain: 지금 받은 판정 결과(등급, 절감액, 회수 기간 등)의 이유를 묻는 질문
-- what_if: 주행거리, 출퇴근 거리, 장거리 빈도, 충전기, 보유 기간, 차량 가격, 비교 내연기관차 연비, 폐차 여부를 바꿔 보는 질문
+- what_if: 주행거리, 출퇴근 거리, 장거리 빈도, 충전기, 보유 기간, 차량 가격, 비교 내연기관차 연비, 폐차 여부를 바꿔 보는 질문,
+  내 주거지·근무지에 충전기가 있고 없고를 가정해 결과가 어떻게 달라지는지 묻는 질문
 - off_topic: 전기차 전환·보조금과 무관한 질문
+
+충전소 개수를 묻는 것은 eligibility, 내 충전기 유무를 바꿔 보는 것은 what_if입니다.
 
 출력은 JSON만. {"intent": "..."}"""
 
@@ -480,7 +484,8 @@ CHANGE_KEYS = {
 
 
 def _json(text: str) -> dict:
-    data = json.loads(CODE_FENCE_RE.sub("", text.strip()))
+    # 첫 JSON 객체만 읽는다. "10년 타면요?"에서 JSON 뒤에 설명 문장을 덧붙인 응답이 있었다 (Extra data).
+    data, _ = json.JSONDecoder().raw_decode(CODE_FENCE_RE.sub("", text.strip()))
     if not isinstance(data, dict):
         raise ValueError("JSON 객체가 아닙니다")
     return data
@@ -502,15 +507,26 @@ def classify_intent(question: str, history: list[dict]) -> str | None:
 
 
 def extract_changes(question: str) -> dict | None:
-    """바꿔 볼 조건. 허용 키만 남긴다. 실패 시 None, 찾은 게 없으면 {}."""
+    """바꿔 볼 조건. 허용 키만 남긴다.
+
+    반환:
+    - None: 호출 자체가 실패(키 없음·네트워크·인증 등) → 호출부는 CHAT_UNAVAILABLE
+    - {}: 응답은 왔지만 JSON이 아니거나 바꿀 값이 없음 → 호출부는 무엇을 바꿀지 되묻는다
+      ("조건 바꾸면요?"처럼 값이 없는 질문에 모델이 JSON 대신 문장으로 답하는 경우가 있었다)
+    """
     api_key = _api_key()
     if not api_key:
         return None
     try:
-        changes = _json(_complete(api_key, CHANGE_SYSTEM_PROMPT, question, max_tokens=200)).get("changes")
+        text = _complete(api_key, CHANGE_SYSTEM_PROMPT, question, max_tokens=200)
     except Exception as e:
         _log_failure("조건 추출 실패", e)
         return None
+    try:
+        changes = _json(text).get("changes")
+    except ValueError as e:  # json.JSONDecodeError 포함
+        logger.warning("조건 추출: 응답 파싱 실패, 바꿀 조건 없음으로 처리 (%s)", e)
+        return {}
     if not isinstance(changes, dict):
         return {}
     return {k: v for k, v in changes.items() if k in CHANGE_KEYS}

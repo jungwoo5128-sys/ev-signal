@@ -133,6 +133,50 @@ def test_what_if_invalid_value_asks_again(client, monkeypatch):
     assert calls["reason"] == 0
 
 
+@pytest.mark.parametrize("changes, expected", [
+    ({"hold_years": 10}, "보유 기간은 3년, 5년, 7년 중에서만 선택할 수 있어요. 다른 값으로 다시 물어봐 주세요."),
+    ({"annual_km": -5}, "'연간 주행거리'에 넣을 수 있는 값이 아니에요. 다른 값으로 다시 물어봐 주세요."),
+    ({"ev_price_manwon": "abc"}, "'전기차 가격'에 넣을 수 있는 값이 아니에요. 다른 값으로 다시 물어봐 주세요."),
+    ({"long_trip": "자주"}, "장거리 주행은 '거의없음', '월1~2회', '월3회이상' 중에서만 선택할 수 있어요. 다른 값으로 다시 물어봐 주세요."),
+])
+def test_what_if_invalid_value_message_is_korean(client, monkeypatch, changes, expected):
+    fake_llm(monkeypatch, intent="what_if", changes=changes)
+    out = ask(client, "조건을 바꾸면요?")
+    assert out == {"answer": expected}
+    assert "Input should" not in out["answer"]
+
+
+def test_what_if_unparsable_extraction_asks_what_to_change(client, monkeypatch, caplog):
+    fake_llm(monkeypatch, intent="what_if")
+    original = llm._complete
+
+    def complete(api_key, system, *args, **kwargs):
+        if system == llm.CHANGE_SYSTEM_PROMPT:
+            return "어떤 조건을 바꾸고 싶으신가요?"  # JSON이 아닌 응답
+        return original(api_key, system, *args, **kwargs)
+
+    monkeypatch.setattr(llm, "_complete", complete)
+    assert ask(client, "조건 바꾸면요?") == {"answer": chat_graph.NO_CHANGE_ANSWER}
+    assert "응답 파싱 실패" in caplog.text
+
+
+def test_what_if_extraction_call_failure_is_unavailable(client, monkeypatch):
+    fake_llm(monkeypatch, intent="what_if")
+    original = llm._complete
+
+    def complete(api_key, system, *args, **kwargs):
+        if system == llm.CHANGE_SYSTEM_PROMPT:
+            raise llm.anthropic.APIConnectionError(request=None)
+        return original(api_key, system, *args, **kwargs)
+
+    monkeypatch.setattr(llm, "_complete", complete)
+    assert ask(client, "3년만 타면요?") == {"answer": llm.CHAT_UNAVAILABLE}
+
+
+def test_intent_prompt_separates_charger_count_and_charger_what_if():
+    assert "충전소 개수를 묻는 것은 eligibility, 내 충전기 유무를 바꿔 보는 것은 what_if입니다." in llm.INTENT_SYSTEM_PROMPT
+
+
 def test_what_if_without_changes(client, monkeypatch):
     fake_llm(monkeypatch, intent="what_if", changes={})
     assert ask(client, "조건 바꾸면요?") == {"answer": chat_graph.NO_CHANGE_ANSWER}
@@ -141,6 +185,7 @@ def test_what_if_without_changes(client, monkeypatch):
 def test_off_topic(client, monkeypatch):
     fake_llm(monkeypatch, intent="off_topic")
     assert ask(client, "점심 뭐 먹지?") == {"answer": chat_graph.OFF_TOPIC_ANSWER}
+    assert "환경이에요" in chat_graph.OFF_TOPIC_ANSWER
 
 
 def test_eligibility_route_keeps_charger_evidence(client, monkeypatch):
@@ -154,3 +199,16 @@ def test_eligibility_route_keeps_charger_evidence(client, monkeypatch):
     monkeypatch.setattr(llm, "answer_eligibility", fake_answer)
     assert ask(client, "우리 지역 충전소는 얼마나 있나요?") == {"answer": "충전소 안내"}
     assert captured["chargers"]  # 결과 화면에서도 충전 인프라 근거가 그대로 전달된다
+
+
+def test_what_if_extraction_with_trailing_text_still_validates(client, monkeypatch):
+    fake_llm(monkeypatch, intent="what_if")
+    original = llm._complete
+
+    def complete(api_key, system, *args, **kwargs):
+        if system == llm.CHANGE_SYSTEM_PROMPT:
+            return '{"changes": {"hold_years": 10}}\n보유 기간은 3, 5, 7년만 가능합니다.'
+        return original(api_key, system, *args, **kwargs)
+
+    monkeypatch.setattr(llm, "_complete", complete)
+    assert ask(client, "10년 타면요?") == {"answer": chat_graph.CHOICE_ANSWERS["hold_years"]}

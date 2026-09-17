@@ -35,11 +35,30 @@ CHANGE_LABELS = {
 }
 
 OFF_TOPIC_ANSWER = (
-    "저는 전기차 전환 판정과 보조금 자격을 안내하는 환경이예요. "
+    "저는 전기차 전환 판정과 보조금 자격을 안내하는 환경이에요. "
     "판정 이유, 조건을 바꿨을 때의 결과, 보조금 자격을 물어봐 주세요."
 )
 NO_CHANGE_ANSWER = "어떤 조건을 바꿔 볼지 알려주세요. 예: '연간 주행거리가 2만km면 어떻게 돼요?'"
-INVALID_CHANGE_ANSWER = "바꾸려는 값을 계산에 쓸 수 없어요. {detail} 다른 값으로 다시 물어봐 주세요."
+INVALID_CHANGE_ANSWER = "'{label}'에 넣을 수 있는 값이 아니에요. 다른 값으로 다시 물어봐 주세요."
+INVALID_CHANGE_GENERIC = "바꾸려는 값으로는 계산할 수 없어요. 다른 값으로 다시 물어봐 주세요."
+# 선택지가 정해진 항목은 고를 수 있는 값을 알려준다 (pydantic 영어 메시지는 노출하지 않음)
+CHOICE_ANSWERS = {
+    "hold_years": "보유 기간은 3년, 5년, 7년 중에서만 선택할 수 있어요. 다른 값으로 다시 물어봐 주세요.",
+    "long_trip": "장거리 주행은 '거의없음', '월1~2회', '월3회이상' 중에서만 선택할 수 있어요. 다른 값으로 다시 물어봐 주세요.",
+    "work_charger": "근무지 충전기는 '있음', '없음', '해당없음' 중에서만 선택할 수 있어요. 다른 값으로 다시 물어봐 주세요.",
+}
+
+
+def invalid_change_answer(error: Exception) -> str:
+    """검증 실패를 사용자용 한국어 안내로 바꾼다. 첫 번째로 걸린 항목 기준."""
+    if isinstance(error, ValidationError):
+        for err in error.errors():
+            field = err["loc"][-1] if err["loc"] else None
+            if field in CHOICE_ANSWERS:
+                return CHOICE_ANSWERS[field]
+            if field in CHANGE_LABELS:
+                return INVALID_CHANGE_ANSWER.format(label=CHANGE_LABELS[field])
+    return INVALID_CHANGE_GENERIC
 
 
 class ChatState(TypedDict, total=False):
@@ -86,8 +105,10 @@ def prepare_explain(state: ChatState) -> ChatState:
 
 def extract(state: ChatState) -> ChatState:
     changes = llm.extract_changes(state["question"])
-    if not changes:
-        return {"changes": {}, "answer": NO_CHANGE_ANSWER if changes == {} else llm.CHAT_UNAVAILABLE}
+    if changes is None:  # 호출 자체 실패
+        return {"changes": {}, "answer": llm.CHAT_UNAVAILABLE}
+    if not changes:  # 파싱 실패 또는 바꿀 값 없음
+        return {"changes": {}, "answer": NO_CHANGE_ANSWER}
 
     if "annual_km" in changes:
         changes["distance_mode"] = "annual"
@@ -99,8 +120,7 @@ def extract(state: ChatState) -> ChatState:
         target = service.EvaluateInput(**merged)  # 범위·선택지 검증 (예: 보유 기간 3/5/7)
         evaluation = service._evaluate(state["store"], target)
     except (ValidationError, ValueError, KeyError) as e:
-        detail = e.errors()[0]["msg"] if isinstance(e, ValidationError) else str(e)
-        return {"changes": {}, "answer": INVALID_CHANGE_ANSWER.format(detail=detail)}
+        return {"changes": {}, "answer": invalid_change_answer(e)}
 
     return {
         "changes": changes,
