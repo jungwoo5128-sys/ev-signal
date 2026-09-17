@@ -1,6 +1,0 @@
-[theme]
-base = "dark"
-primaryColor = "#FF2E88"             # --accent: 라디오·체크박스·입력 포커스 (기본 빨강 대체)
-backgroundColor = "#080B14"          # --bg
-secondaryBackgroundColor = "#0E1524" # --panel: 입력 위젯 배경
-textColor = "#C8D4E4"                # --text

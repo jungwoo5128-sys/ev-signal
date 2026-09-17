@@ -6,7 +6,6 @@ from config import (
     CHARGING_PRICE,
     CO2_ELECTRIC,
     CO2_GASOLINE,
-    DEFAULT_PRICE_GAP,
     GASOLINE_PRICE,
     PINE_ABSORPTION,
 )
@@ -77,7 +76,7 @@ def calc_price_gap(ev_price, ice_price) -> float:
     return float(max(ev_price - ice_price, 0))
 
 
-def calc_bep(price_gap=DEFAULT_PRICE_GAP, subsidy=0, annual_saving=0) -> dict:
+def calc_bep(price_gap, subsidy=0, annual_saving=0) -> dict:
     """실부담(원)과 손익분기 연수. 회수 불가면 inf, 보조금이 차액보다 크면 0.0."""
     net_cost = float(price_gap - subsidy)
     if net_cost < 0:

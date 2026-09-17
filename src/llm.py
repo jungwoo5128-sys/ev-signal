@@ -8,7 +8,6 @@ import re
 from pathlib import Path
 
 import anthropic
-import streamlit as st
 from dotenv import load_dotenv
 
 from config import LLM_TIMEOUT, NOTICE_LLM_TIMEOUT
@@ -140,15 +139,8 @@ def _parse(text: str) -> dict:
 
 
 def _api_key() -> str:
-    """로컬 환경변수(.env) → Streamlit Cloud secrets 순서로 API 키를 찾는다."""
-    key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-    if key:
-        return key
-    try:
-        # secrets.toml이 없으면 접근 자체가 예외를 던질 수 있다
-        return str(st.secrets.get("ANTHROPIC_API_KEY", "") or "").strip()
-    except Exception:
-        return ""
+    """환경변수(로컬은 .env, 배포 환경은 호스팅 설정)에서 API 키를 찾는다."""
+    return os.environ.get("ANTHROPIC_API_KEY", "").strip()
 
 
 def _complete(

@@ -98,17 +98,6 @@ def load_data(path=None) -> tuple[pd.DataFrame, pd.DataFrame]:
     return summary, models
 
 
-def schema_signature() -> tuple:
-    """loader가 읽는 시트·컬럼 구성. 앱 캐시 키에 넣어, 구성이 바뀌면 캐시가 무효화되게 한다."""
-    return (
-        SUMMARY_SHEET,
-        tuple(SUMMARY_COLUMNS),
-        MODEL_SHEET,
-        tuple(MODEL_COLUMNS),
-        tuple(MANWON_COLUMNS.items()),
-    )
-
-
 def get_regions(summary_df: pd.DataFrame) -> list[str]:
     """지역구분 목록을 정렬해서 반환."""
     return sorted(summary_df["지역구분"].dropna().unique().tolist())

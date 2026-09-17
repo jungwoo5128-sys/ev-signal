@@ -56,9 +56,3 @@ def test_model_info_missing_column_returns_none(model_df):
     info = loader.get_model_info(model_df.drop(columns=["제조사", "scrap_local"]), "성남시", model)
     assert info["maker"] is None and info["scrap_local"] is None
     assert info["subsidy_with_scrap"] == 10_200_000
-
-
-def test_schema_signature_changes_with_columns(monkeypatch):
-    before = loader.schema_signature()
-    monkeypatch.setattr(loader, "SUMMARY_COLUMNS", [c for c in loader.SUMMARY_COLUMNS if c != "비고"])
-    assert loader.schema_signature() != before

@@ -108,31 +108,18 @@ def test_numbers_outside_reasons_not_allowed(monkeypatch):
         assert llm.generate_reason("GREEN", [], CTX, CALC)["fallback"] is True
 
 
-def test_api_key_from_secrets(monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.setattr(llm, "st", SimpleNamespace(secrets={"ANTHROPIC_API_KEY": "sk-cloud"}))
-    assert llm._api_key() == "sk-cloud"
-
-
-def test_env_key_takes_priority(monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-local")
-    monkeypatch.setattr(llm, "st", SimpleNamespace(secrets={"ANTHROPIC_API_KEY": "sk-cloud"}))
+def test_api_key_from_env_is_stripped(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "  sk-local\n")
     assert llm._api_key() == "sk-local"
 
 
-def test_secrets_error_treated_as_missing(monkeypatch):
-    class BrokenSecrets:
-        def get(self, *args):
-            raise FileNotFoundError("No secrets.toml")
-
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.setattr(llm, "st", SimpleNamespace(secrets=BrokenSecrets()))
+def test_blank_api_key_treated_as_missing(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "   ")
     assert llm._api_key() == ""
 
 
 def test_no_api_key(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.setattr(llm, "st", SimpleNamespace(secrets={}))
     result = llm.generate_reason("GREEN", [], CTX, CALC)
     assert result == {"headline": "전환을 권장합니다", "reason": "특별한 제약 사항이 없습니다",
                       "caution": "", "fallback": True}
@@ -271,7 +258,6 @@ def test_notice_summary_failure_returns_none(monkeypatch, kwargs):
 
 def test_notice_summary_no_api_key(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.setattr(llm, "st", SimpleNamespace(secrets={}))
     assert llm.summarize_notice(NOTICE, True, MODEL) is None
 
 
