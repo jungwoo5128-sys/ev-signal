@@ -138,6 +138,35 @@ def _api_key() -> str:
         return ""
 
 
+def _complete(api_key: str, system: str, user_message: str, max_tokens: int = 1024) -> str:
+    """한 번의 Messages API 호출. 실패는 예외로 올린다 (호출부에서 폴백 처리)."""
+    client = anthropic.Anthropic(api_key=api_key, timeout=LLM_TIMEOUT, max_retries=0)
+    response = client.messages.create(
+        model=MODEL,
+        max_tokens=max_tokens,
+        system=system,
+        messages=[{"role": "user", "content": user_message}],
+    )
+    if response.stop_reason == "refusal":
+        raise ValueError("refusal")
+    return "".join(b.text for b in response.content if b.type == "text")
+
+
+def _log_failure(label: str, error: Exception) -> None:
+    if isinstance(error, anthropic.AuthenticationError):
+        logger.warning("%s: 잘못된 API 키", label)
+    elif isinstance(error, anthropic.APITimeoutError):
+        logger.warning("%s: 타임아웃 (%ss)", label, LLM_TIMEOUT)
+    elif isinstance(error, anthropic.APIConnectionError):
+        logger.warning("%s: 네트워크 오류", label)
+    elif isinstance(error, anthropic.APIStatusError):
+        logger.warning("%s: API 오류 %s", label, error.status_code)
+    elif isinstance(error, (json.JSONDecodeError, ValueError)):
+        logger.warning("%s: 응답 파싱 실패 (%s)", label, error)
+    else:
+        logger.exception("%s: 예상치 못한 오류", label)
+
+
 def generate_reason(grade, reasons, ctx, calc_results) -> dict:
     """judge() 결과를 자연어로 풀어쓴다. 실패하면 사유 리스트 기반 폴백을 반환."""
     api_key = _api_key()
@@ -147,19 +176,7 @@ def generate_reason(grade, reasons, ctx, calc_results) -> dict:
 
     try:
         user_message = _build_user_message(grade, reasons, ctx, calc_results)
-        client = anthropic.Anthropic(
-            api_key=api_key, timeout=LLM_TIMEOUT, max_retries=0
-        )
-        response = client.messages.create(
-            model=MODEL,
-            max_tokens=1024,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_message}],
-        )
-        if response.stop_reason == "refusal":
-            raise ValueError("refusal")
-        text = "".join(b.text for b in response.content if b.type == "text")
-        parsed = _parse(text)
+        parsed = _parse(_complete(api_key, SYSTEM_PROMPT, user_message))
 
         # 등급 결론 문구는 코드가 고정. LLM 응답의 headline은 요청하지도, 쓰지도 않는다.
         # judge()가 제약 없음으로 판정했으면 LLM이 만든 caution은 버린다.
@@ -178,16 +195,86 @@ def generate_reason(grade, reasons, ctx, calc_results) -> dict:
             "caution": caution,
             "fallback": False,
         }
-    except anthropic.AuthenticationError:
-        logger.warning("LLM 폴백: 잘못된 API 키")
-    except anthropic.APITimeoutError:
-        logger.warning("LLM 폴백: 타임아웃 (%ss)", LLM_TIMEOUT)
-    except anthropic.APIConnectionError:
-        logger.warning("LLM 폴백: 네트워크 오류")
-    except anthropic.APIStatusError as e:
-        logger.warning("LLM 폴백: API 오류 %s", e.status_code)
-    except (json.JSONDecodeError, ValueError) as e:
-        logger.warning("LLM 폴백: 응답 파싱 실패 (%s)", e)
-    except Exception:  # 데모 중 어떤 예외도 앱 밖으로 던지지 않는다
-        logger.exception("LLM 폴백: 예상치 못한 오류")
+    except Exception as e:  # 데모 중 어떤 예외도 앱 밖으로 던지지 않는다
+        _log_failure("LLM 폴백", e)
     return _fallback(grade, reasons)
+
+
+# --- 지자체 공지사항 요약 -------------------------------------------------
+
+NOTICE_SYSTEM_PROMPT = """당신은 지자체 전기차 보조금 공지사항에서 구매 결정에 영향을 주는 내용만 뽑아 요약합니다.
+
+우선 추출 대상:
+- 접수 마감 여부와 재개 일정
+- 대기 순번 관련 정보
+- 출고 기한, 자동 취소 조건
+- 서류 제출 관련 제약
+- 우선순위 배정 방식
+
+제외할 내용:
+- 전화 응대 관련 안내
+- 화물·승합 등 전기승용차가 아닌 차종 정보
+- 단순 인사말, 사과, 감사 표현
+
+규칙:
+- 원문에 없는 내용을 추가하지 마세요.
+- 원문의 숫자·날짜를 바꾸거나 계산하지 마세요. 원문 표기를 그대로 쓰세요.
+- 사용자 조건(폐차 예정 여부, 관심 모델)과 관련된 내용을 우선하세요.
+- 각 항목은 한 문장, 최대 3개.
+- 해당 내용이 없으면 빈 배열을 반환하세요.
+
+출력은 JSON만. 코드블록이나 다른 텍스트를 붙이지 마세요.
+{"items": ["...", "..."]}"""
+
+MAX_NOTICE_ITEMS = 3
+
+
+def _digit_groups(text: str) -> set[str]:
+    """숫자 묶음을 앞자리 0 없이 추출. '1,713' → '1713', '26.08.20' → {'26', '8', '20'}"""
+    text = re.sub(r"(?<=\d),(?=\d)", "", text)
+    return {str(int(g)) for g in re.findall(r"\d+", text)}
+
+
+def summarize_notice(notice, has_scrap: bool, model: str):
+    """공지 원문 요약 항목 리스트. 원문이 없거나 실패하면 None (섹션을 숨긴다).
+
+    원문에 없는 숫자가 들어간 항목은 버린다.
+    """
+    if not notice or not str(notice).strip():
+        return None
+    api_key = _api_key()
+    if not api_key:
+        logger.warning("공지 요약 생략: ANTHROPIC_API_KEY 없음")
+        return None
+
+    user_message = json.dumps(
+        {
+            "사용자 조건": {
+                "현재 차량 폐차·매도 예정": "예" if has_scrap else "아니오",
+                "관심 모델": model,
+            },
+            "공지 원문": str(notice),
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+    try:
+        data = json.loads(CODE_FENCE_RE.sub("", _complete(api_key, NOTICE_SYSTEM_PROMPT, user_message).strip()))
+        items = data.get("items") if isinstance(data, dict) else None
+        if not isinstance(items, list):
+            raise ValueError("items 누락")
+    except Exception as e:
+        _log_failure("공지 요약 생략", e)
+        return None
+
+    allowed = _digit_groups(str(notice)) | _digit_groups(model or "")
+    result = []
+    for item in items:
+        if not isinstance(item, str) or not item.strip():
+            continue
+        unknown = _digit_groups(item) - allowed
+        if unknown:
+            logger.warning("공지 요약 항목 제외: 원문에 없는 숫자 %s", sorted(unknown))
+            continue
+        result.append(item.strip())
+    return result[:MAX_NOTICE_ITEMS]

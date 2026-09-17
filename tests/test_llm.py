@@ -163,3 +163,71 @@ def test_numbers_passed_as_display_strings():
     for expected in ("1,408,000원", "10,200,000원", "1.85톤", "280그루", "5,800,000원", "4.1년",
                      "52,000,000원", "36,000,000원", "16,000,000원"):
         assert expected in message
+
+
+# --- 지자체 공지사항 요약 ---------------------------------------------------
+
+NOTICE = (
+    "★전기승용 26.9.10. 7시 기준 약 440대 가능★\n"
+    "○ 접수기간: 2026. 9. 9.(수) 10:00 ~ 2026. 12. 11.(금) 18:00\n"
+    "* 출고 10일 이내 차량에 한하여 신청 가능\n"
+    "* 현재 접수 폭주로 전화연결이 어렵습니다."
+)
+MODEL = "더 뉴 아이오닉5 2WD 롱레인지 19인치"
+
+
+def test_notice_summary_success(monkeypatch):
+    fake_client(monkeypatch, text='{"items": ["접수기간은 2026. 12. 11.(금) 18:00까지입니다.", '
+                                  '"출고 10일 이내 차량만 신청할 수 있습니다."]}')
+    assert llm.summarize_notice(NOTICE, True, MODEL) == [
+        "접수기간은 2026. 12. 11.(금) 18:00까지입니다.",
+        "출고 10일 이내 차량만 신청할 수 있습니다.",
+    ]
+
+
+def test_notice_summary_code_fence_and_max_three(monkeypatch):
+    fake_client(monkeypatch, text='```json\n{"items": ["a", "b", "c", "d"]}\n```')
+    assert llm.summarize_notice(NOTICE, False, MODEL) == ["a", "b", "c"]
+
+
+def test_notice_summary_empty_items(monkeypatch):
+    fake_client(monkeypatch, text='{"items": []}')
+    assert llm.summarize_notice(NOTICE, False, MODEL) == []
+
+
+def test_notice_summary_drops_item_with_unknown_number(monkeypatch, caplog):
+    fake_client(monkeypatch, text='{"items": ["약 500대 남았습니다.", "출고 10일 이내 차량만 신청 가능합니다."]}')
+    assert llm.summarize_notice(NOTICE, True, MODEL) == ["출고 10일 이내 차량만 신청 가능합니다."]
+    assert "원문에 없는 숫자" in caplog.text
+
+
+def test_notice_summary_allows_model_numbers(monkeypatch):
+    fake_client(monkeypatch, text='{"items": ["아이오닉5 2WD 19인치는 출고 10일 이내에 신청해야 합니다."]}')
+    assert llm.summarize_notice(NOTICE, True, MODEL) == ["아이오닉5 2WD 19인치는 출고 10일 이내에 신청해야 합니다."]
+
+
+@pytest.mark.parametrize("notice", [None, "", "   "])
+def test_notice_summary_no_notice_skips_call(monkeypatch, notice):
+    def boom(**kw):
+        raise AssertionError("API를 호출하면 안 됨")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setattr(llm.anthropic, "Anthropic", boom)
+    assert llm.summarize_notice(notice, True, MODEL) is None
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"error": anthropic.APITimeoutError(request=REQUEST)},
+    {"error": anthropic.APIConnectionError(request=REQUEST)},
+    {"text": "요약할 수 없습니다"},
+    {"text": '{"summary": "x"}'},
+    {"text": "", "stop_reason": "refusal"},
+])
+def test_notice_summary_failure_returns_none(monkeypatch, kwargs):
+    fake_client(monkeypatch, **kwargs)
+    assert llm.summarize_notice(NOTICE, True, MODEL) is None
+
+
+def test_notice_summary_no_api_key(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(llm, "st", SimpleNamespace(secrets={}))
+    assert llm.summarize_notice(NOTICE, True, MODEL) is None

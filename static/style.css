@@ -351,3 +351,49 @@
     color: var(--muted);
     font-size: 13px;
 }
+
+/* ---------- 지자체 공지사항 요약 ---------- */
+.evs-notice {
+    margin-top: 12px;
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    padding: 14px 18px;
+    color: var(--text);
+}
+
+.evs-notice-title {
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--text);
+}
+
+.evs-notice ul {
+    margin: 0;
+    padding-left: 1.2em;
+    line-height: 1.7;
+}
+
+.evs-notice-empty {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.st-key-notice_raw [data-testid="stExpander"] details {
+    background: transparent;
+    border-color: var(--border-soft);
+}
+
+.st-key-notice_raw [data-testid="stExpander"] summary p {
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.evs-notice-raw {
+    white-space: pre-wrap;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--muted);
+    max-height: 360px;
+    overflow-y: auto;
+}

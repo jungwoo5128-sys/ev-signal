@@ -409,6 +409,50 @@ def explain(grade, reasons, ctx, calc_results):
     return explanation
 
 
+def notice_summary(region, notice, has_scrap, model):
+    """공지 요약을 세션에 캐싱. 실패(None)도 잠시 캐싱해 조작마다 5초씩 기다리지 않게 한다."""
+    cache = ss.setdefault("notice_cache", {})
+    cache_key = repr((region, notice, has_scrap, model))
+    cached = cache.get(cache_key)
+    if cached:
+        items, created = cached
+        if items is not None or time.time() - created < FALLBACK_RETRY_SECONDS:
+            return items
+    items = llm.summarize_notice(notice, has_scrap, model)
+    cache[cache_key] = (items, time.time())
+    return items
+
+
+def render_notice(placeholder, region, notice):
+    """판정 결과를 모두 그린 뒤 호출해, 요약이 늦거나 실패해도 판정 표시를 막지 않는다."""
+    if not notice:
+        placeholder.empty()  # 공지 원문이 없는 지자체는 섹션 자체를 숨김
+        return
+    with placeholder.container():
+        with st.spinner("공지사항을 요약하는 중..."):
+            items = notice_summary(region, notice, ss.has_scrap, ss.model)
+    if items is None:
+        placeholder.empty()  # 요약 실패 시 섹션 전체 생략
+        return
+    with placeholder.container():
+        if items:
+            body = "<ul>" + "".join(f"<li>{mono(item)}</li>" for item in items) + "</ul>"
+        else:
+            body = '<div class="evs-notice-empty">구매 결정에 영향을 주는 공지 내용이 없습니다.</div>'
+        st.markdown(
+            f'<div class="evs-notice">'
+            f'<div class="evs-notice-title">{html.escape(region)} 공지사항 요약</div>'
+            f"{body}</div>",
+            unsafe_allow_html=True,
+        )
+        with st.container(key="notice_raw"):
+            with st.expander("원문 보기"):
+                st.markdown(
+                    f'<div class="evs-notice-raw">{html.escape(notice)}</div>',
+                    unsafe_allow_html=True,
+                )
+
+
 def card(title, value, note):
     st.markdown(
         f'<div class="evs-card">'
@@ -532,6 +576,8 @@ def render_result():
         f"</div>",
         unsafe_allow_html=True,
     )
+    # 4-1) 공지사항 요약 — 자리만 잡고, 페이지 맨 끝에서 채운다
+    notice_placeholder = st.empty()
     st.write("")
 
     # 5) 근거
@@ -572,6 +618,9 @@ def render_result():
 
     # 6) 하단
     st.button("다시 입력하기", on_click=back_to_input)
+
+    # 판정·카드·근거가 모두 표시된 뒤 공지 요약을 채운다
+    render_notice(notice_placeholder, ss.region, status["notice"])
 
 
 if ss.step == "result":

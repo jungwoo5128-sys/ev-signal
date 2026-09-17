@@ -15,7 +15,7 @@ SUMMARY_COLUMNS = [
     "시도", "지역구분", "접수상태", "최종 신청마감",
     "공고대수(전체)", "접수대수(전체)", "출고대수(전체)",
     "선정잔여(전체)", "출고잔여(전체)",
-    "접수율(%)", "예산소진율(%)", "담당부서", "연락처",
+    "접수율(%)", "예산소진율(%)", "담당부서", "연락처", "비고",
 ]
 
 MODEL_COLUMNS = [
@@ -136,6 +136,14 @@ def get_model_info(model_df: pd.DataFrame, region: str, model: str) -> dict:
     }
 
 
+def _clean_notice(value):
+    """지자체 공지 원문. 비어 있으면 None."""
+    if value is None or pd.isna(value):
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 def get_region_status(summary_df: pd.DataFrame, region: str) -> dict:
     """지역의 접수 현황."""
     rows = summary_df[summary_df["지역구분"] == region]
@@ -151,4 +159,5 @@ def get_region_status(summary_df: pd.DataFrame, region: str) -> dict:
         "담당부서": _to_python(row["담당부서"]),
         "연락처": _to_python(row["연락처"]),
         "최종신청마감": _to_python(row["최종 신청마감"]),
+        "notice": _clean_notice(row["비고"]),
     }
