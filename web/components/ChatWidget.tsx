@@ -189,7 +189,15 @@ export function ChatWidget({ region }: Props) {
             ?
           </span>
         ) : (
-          <Image src="/mascot.png" alt="" width={64} height={64} onError={() => setMascotFailed(true)} />
+          // 항상 화면에 떠 있는 버튼이라 지연 로딩하지 않는다
+          <Image
+            src="/mascot.png"
+            alt=""
+            width={64}
+            height={64}
+            loading="eager"
+            onError={() => setMascotFailed(true)}
+          />
         )}
       </button>
     </>

@@ -1195,9 +1195,9 @@ p {
   height: 64px;
   padding: 0;
   border: 0;
-  border-radius: 50%;
+  border-radius: 50%; /* 그림자가 원형 이미지 경계를 따르도록 */
   overflow: hidden;
-  background: var(--panel);
+  background: transparent; /* 마스코트 이미지 자체가 흰 원 배경 */
   box-shadow: 0 6px 18px rgba(42, 15, 20, 0.22), 0 2px 4px rgba(42, 15, 20, 0.12);
   cursor: pointer;
   transition: transform 0.15s, box-shadow 0.15s;
@@ -1217,7 +1217,7 @@ p {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain; /* cover면 안테나·손 등 가장자리가 잘린다 */
 }
 
 .chat-fab-fallback {
