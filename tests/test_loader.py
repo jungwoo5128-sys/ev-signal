@@ -20,9 +20,9 @@ def summary_df():
     return loader.load_data()[0]
 
 
-def test_notice_present_for_155_regions(summary_df):
+def test_notice_present_for_154_regions(summary_df):
     statuses = [loader.get_region_status(summary_df, r) for r in loader.get_regions(summary_df)]
-    assert sum(s["notice"] is not None for s in statuses) == 155
+    assert sum(s["notice"] is not None for s in statuses) == 154  # 2026-09-18: 완도군 공지 없음
 
 
 def test_notice_text_and_missing(summary_df):
@@ -43,12 +43,12 @@ def test_region_status_missing_columns_returns_none(summary_df):
     assert status["notice"] is None
     assert status["접수율"] is None
     assert status["담당부서"] is None
-    assert status["출고잔여"] == 1713  # 남은 컬럼은 그대로
+    assert status["출고잔여"] == 1534  # 남은 컬럼은 그대로
 
 
 def test_region_status_unchanged_on_full_data(summary_df):
     status = loader.get_region_status(summary_df, "성남시")
-    assert (status["접수율"], status["출고잔여"], status["접수상태"]) == (67, 1713, "접수중")
+    assert (status["접수율"], status["출고잔여"], status["접수상태"]) == (80, 1534, "접수중")
     assert status["notice"]
 
 
