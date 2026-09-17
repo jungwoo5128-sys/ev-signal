@@ -1,0 +1,667 @@
+diff --git a/api/chat_graph.py b/api/chat_graph.py
+new file mode 100644
+index 0000000..438cb90
+--- /dev/null
++++ b/api/chat_graph.py
+@@ -0,0 +1,222 @@
++"""LangGraph 챗봇 흐름.
++
++질문 → 의도 분류 → (자격 문의 | 판정 설명 | 조건 변경 | 주제 이탈) → 응답
++
++- 등급·계산은 여전히 코드(service._evaluate, judge)가 정한다.
++- 자격·충전소 문의는 기존 service.chat()(→ llm.answer_eligibility)을 그대로 쓴다.
++- 판정 설명은 숫자 검증에 걸리면 최대 MAX_RETRIES번 다시 생성하고,
++  그래도 안 되면 규칙 사유로 만든 안전 템플릿(llm._fallback)으로 답한다.
++- 판정 결과(profile)가 없거나 API 키가 없으면 기존과 똑같이 자격 문의로 처리한다.
++"""
++
++from typing import Literal, TypedDict
++
++from langgraph.graph import END, START, StateGraph
++from pydantic import ValidationError
++
++from api import service
++from src import llm
++
++MAX_RETRIES = 2
++
++GRADE_NAMES = {"GREEN": "초록(추천)", "YELLOW": "노랑(조건부)", "RED": "빨강(비추천)"}
++
++CHANGE_LABELS = {
++    "annual_km": "연간 주행거리",
++    "commute_km": "출퇴근 왕복 거리",
++    "long_trip": "장거리 주행",
++    "home_charger": "주거지 충전기",
++    "work_charger": "근무지 충전기",
++    "hold_years": "보유 기간",
++    "current_efficiency": "내연기관차 연비",
++    "ev_price_manwon": "전기차 가격",
++    "ice_price_manwon": "내연기관차 가격",
++    "has_scrap": "폐차·매도 예정",
++}
++
++OFF_TOPIC_ANSWER = (
++    "저는 전기차 전환 판정과 보조금 자격을 안내하는 환경이예요. "
++    "판정 이유, 조건을 바꿨을 때의 결과, 보조금 자격을 물어봐 주세요."
++)
++NO_CHANGE_ANSWER = "어떤 조건을 바꿔 볼지 알려주세요. 예: '연간 주행거리가 2만km면 어떻게 돼요?'"
++INVALID_CHANGE_ANSWER = "바꾸려는 값을 계산에 쓸 수 없어요. {detail} 다른 값으로 다시 물어봐 주세요."
++
++
++class ChatState(TypedDict, total=False):
++    # 입력
++    store: service.Store
++    question: str
++    history: list[dict]
++    region: str | None
++    profile: service.EvaluateInput | None
++    # 진행
++    intent: str
++    changes: dict
++    target: service.EvaluateInput  # 설명할 조건 (조건 변경이면 바뀐 조건)
++    evaluation: service.Evaluation
++    before: dict  # 조건 변경 전 표시값
++    after: dict  # 조건 변경 후 표시값
++    draft: dict | None
++    unknown: list[str]
++    retries: int
++    # 출력
++    answer: str
++    profile_changes: dict
++
++
++# --- 노드 ---------------------------------------------------------------------
++
++def classify(state: ChatState) -> ChatState:
++    # 판정 결과가 없으면 설명·조건 변경을 할 수 없으므로 분류하지 않는다 (기존 동작 유지)
++    if state.get("profile") is None:
++        return {"intent": "eligibility"}
++    intent = llm.classify_intent(state["question"], state.get("history", []))
++    return {"intent": intent or "eligibility"}
++
++
++def eligibility(state: ChatState) -> ChatState:
++    inp = service.ChatInput(region=state.get("region"), question=state["question"], history=state.get("history", []))
++    return {"answer": service.chat(state["store"], inp)["answer"]}
++
++
++def prepare_explain(state: ChatState) -> ChatState:
++    target = state["profile"]
++    return {"target": target, "evaluation": service._evaluate(state["store"], target), "retries": 0, "unknown": []}
++
++
++def extract(state: ChatState) -> ChatState:
++    changes = llm.extract_changes(state["question"])
++    if not changes:
++        return {"changes": {}, "answer": NO_CHANGE_ANSWER if changes == {} else llm.CHAT_UNAVAILABLE}
++
++    if "annual_km" in changes:
++        changes["distance_mode"] = "annual"
++    elif "commute_km" in changes:
++        changes["distance_mode"] = "commute"
++
++    merged = {**state["profile"].model_dump(), **changes}
++    try:
++        target = service.EvaluateInput(**merged)  # 범위·선택지 검증 (예: 보유 기간 3/5/7)
++        evaluation = service._evaluate(state["store"], target)
++    except (ValidationError, ValueError, KeyError) as e:
++        detail = e.errors()[0]["msg"] if isinstance(e, ValidationError) else str(e)
++        return {"changes": {}, "answer": INVALID_CHANGE_ANSWER.format(detail=detail)}
++
++    return {
++        "changes": changes,
++        "target": target,
++        "evaluation": evaluation,
++        "before": service.evaluate(state["store"], state["profile"]),
++        "after": service.evaluate(state["store"], target),
++        "retries": 0,
++        "unknown": [],
++    }
++
++
++def write_reason(state: ChatState) -> ChatState:
++    ev = state["evaluation"]
++    feedback = ""
++    if state.get("unknown"):
++        feedback = f"입력에 없는 숫자 {', '.join(state['unknown'])}를 썼습니다. 입력에 적힌 숫자 문자열만 그대로 쓰세요."
++    out = llm.draft_reason(ev.grade, ev.reasons, ev.ctx, ev.calc_results, feedback)
++    if out["error"]:
++        return {"draft": None, "unknown": [], "retries": MAX_RETRIES + 1}  # 네트워크 오류 등은 재시도하지 않음
++    return {"draft": out["result"], "unknown": out["unknown"], "retries": state.get("retries", 0) + (1 if out["unknown"] else 0)}
++
++
++def fallback(state: ChatState) -> ChatState:
++    ev = state["evaluation"]
++    return {"draft": llm._fallback(ev.grade, ev.reasons)}
++
++
++def respond_explain(state: ChatState) -> ChatState:
++    d = state["draft"]
++    parts = [f"{d['headline']}.", d["reason"].rstrip(".") + "."]
++    if d.get("caution"):
++        parts.append(d["caution"])
++
++    if state.get("changes"):
++        b, a = state["before"], state["after"]
++        changed = ", ".join(CHANGE_LABELS[k] for k in state["changes"] if k in CHANGE_LABELS)
++        grade = (
++            f"{GRADE_NAMES[b['grade']]} → {GRADE_NAMES[a['grade']]}"
++            if b["grade"] != a["grade"] else f"{GRADE_NAMES[a['grade']]} 그대로"
++        )
++        summary = (
++            f"{changed} 조건을 바꿔 다시 계산했어요. 판정은 **{grade}**입니다. "
++            f"연간 절감액 {b['cards']['fuel_saving']['value']} → {a['cards']['fuel_saving']['value']}, "
++            f"회수 기간 {b['cards']['payback']['value']} → {a['cards']['payback']['value']}."
++        )
++        return {"answer": summary + " " + " ".join(parts), "profile_changes": state["changes"]}
++
++    return {"answer": " ".join(parts)}
++
++
++def off_topic(state: ChatState) -> ChatState:
++    return {"answer": OFF_TOPIC_ANSWER}
++
++
++# --- 분기 ---------------------------------------------------------------------
++
++def route_intent(state: ChatState) -> Literal["eligibility", "prepare_explain", "extract", "off_topic"]:
++    return {
++        "explain": "prepare_explain",
++        "what_if": "extract",
++        "off_topic": "off_topic",
++    }.get(state["intent"], "eligibility")
++
++
++def route_extract(state: ChatState) -> Literal["write_reason", "__end__"]:
++    return "write_reason" if state.get("changes") else END
++
++
++def route_verify(state: ChatState) -> Literal["respond_explain", "write_reason", "fallback"]:
++    if state.get("draft") and not state.get("unknown"):
++        return "respond_explain"  # 검증 통과
++    if state.get("retries", 0) <= MAX_RETRIES and state.get("draft"):
++        return "write_reason"  # 숫자 불일치 → 다시 생성
++    return "fallback"  # 재시도 초과 또는 호출 실패
++
++
++def build_graph():
++    g = StateGraph(ChatState)
++    g.add_node("classify", classify)
++    g.add_node("eligibility", eligibility)
++    g.add_node("prepare_explain", prepare_explain)
++    g.add_node("extract", extract)
++    g.add_node("write_reason", write_reason)
++    g.add_node("fallback", fallback)
++    g.add_node("respond_explain", respond_explain)
++    g.add_node("off_topic", off_topic)
++
++    g.add_edge(START, "classify")
++    g.add_conditional_edges("classify", route_intent)
++    g.add_edge("prepare_explain", "write_reason")
++    g.add_conditional_edges("extract", route_extract)
++    g.add_conditional_edges("write_reason", route_verify)
++    g.add_edge("fallback", "respond_explain")
++    g.add_edge("eligibility", END)
++    g.add_edge("respond_explain", END)
++    g.add_edge("off_topic", END)
++    return g.compile()
++
++
++GRAPH = build_graph()
++
++
++class GraphChatInput(service.ChatInput):
++    profile: service.EvaluateInput | None = None  # 판정 결과 화면에서만 전달
++
++
++def run(store: service.Store, inp: GraphChatInput) -> dict:
++    out = GRAPH.invoke({
++        "store": store,
++        "question": inp.question,
++        "history": [m.model_dump() for m in inp.history],
++        "region": inp.region,
++        "profile": inp.profile,
++    })
++    result = {"answer": out["answer"]}
++    if out.get("profile_changes"):
++        result["profile_changes"] = out["profile_changes"]
++    return result
+diff --git a/api/main.py b/api/main.py
+index 64a9c84..a23e5c0 100644
+--- a/api/main.py
++++ b/api/main.py
+@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request
+ from fastapi.responses import JSONResponse
+ from pydantic import BaseModel
+ 
+-from api import service
++from api import chat_graph, service
+ 
+ 
+ @asynccontextmanager
+@@ -90,5 +90,6 @@ def contact(request: Request, region: str):
+ 
+ 
+ @app.post("/chat")
+-def chat(request: Request, inp: service.ChatInput):
+-    return service.chat(store(request), inp)
++def chat(request: Request, inp: chat_graph.GraphChatInput):
++    """LangGraph로 의도를 나눠 답한다. profile이 없으면 기존 자격 문의와 같다."""
++    return chat_graph.run(store(request), inp)
+diff --git a/requirements.txt b/requirements.txt
+index 2ce27e7..6dd2554 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -5,3 +5,4 @@ pandas>=3.0.5
+ python-dotenv>=1.2.3
+ uvicorn[standard]>=0.53.0
+ pytest>=9.1.1
++langgraph>=1.0.0
+diff --git a/src/llm.py b/src/llm.py
+index b96533c..92eefb4 100644
+--- a/src/llm.py
++++ b/src/llm.py
+@@ -438,3 +438,106 @@ def answer_eligibility(
+     for message in messages:
+         allowed |= _digit_groups(message["content"])
+     return {"answer": _replace_unsupported_sentences(answer, allowed), "ok": True}
++
++
++# --- LangGraph 챗봇용 -------------------------------------------------------
++# api/chat_graph.py의 노드가 호출한다. 판정·계산은 여전히 코드가 하고, 여기서는
++# (1) 질문 의도 분류, (2) 조건 변경값 추출, (3) 판정 설명 초안 1회 생성만 한다.
++
++INTENTS = ("eligibility", "explain", "what_if", "off_topic")
++
++INTENT_SYSTEM_PROMPT = """사용자는 전기차 전환 판정 결과를 이미 받은 상태입니다.
++질문을 아래 중 하나로 분류하세요.
++
++- eligibility: 보조금 자격·우대 대상·신청 절차·서류·지자체 공지·지역 충전소 현황에 대한 질문
++- explain: 지금 받은 판정 결과(등급, 절감액, 회수 기간 등)의 이유를 묻는 질문
++- what_if: 주행거리, 출퇴근 거리, 장거리 빈도, 충전기, 보유 기간, 차량 가격, 비교 내연기관차 연비, 폐차 여부를 바꿔 보는 질문
++- off_topic: 전기차 전환·보조금과 무관한 질문
++
++출력은 JSON만. {"intent": "..."}"""
++
++CHANGE_SYSTEM_PROMPT = """사용자 질문에서 '바꿔 보고 싶은 조건'만 뽑아 JSON으로 출력하세요.
++질문에 없는 항목은 넣지 마세요. 값을 추정하거나 계산하지 마세요.
++
++사용할 수 있는 키:
++- annual_km: 연간 주행거리 (정수, km). "2만km" → 20000
++- commute_km: 출퇴근 왕복 거리 (km)
++- long_trip: "거의없음" | "월1~2회" | "월3회이상"
++- home_charger: 주거지 충전기 있음 (true/false)
++- work_charger: "있음" | "없음" | "해당없음"
++- hold_years: 보유 기간 (3 | 5 | 7)
++- current_efficiency: 비교 내연기관차 연비 (km/L)
++- ev_price_manwon: 전기차 가격 (만원, 정수)
++- ice_price_manwon: 비교 내연기관차 가격 (만원, 정수)
++- has_scrap: 현재 차량 폐차·매도 예정 (true/false)
++
++출력은 JSON만. 예: {"changes": {"annual_km": 20000}}"""
++
++CHANGE_KEYS = {
++    "annual_km", "commute_km", "long_trip", "home_charger", "work_charger",
++    "hold_years", "current_efficiency", "ev_price_manwon", "ice_price_manwon", "has_scrap",
++}
++
++
++def _json(text: str) -> dict:
++    data = json.loads(CODE_FENCE_RE.sub("", text.strip()))
++    if not isinstance(data, dict):
++        raise ValueError("JSON 객체가 아닙니다")
++    return data
++
++
++def classify_intent(question: str, history: list[dict]) -> str | None:
++    """질문 의도. 키 없음·실패 시 None (호출부가 기존 자격 문의로 처리)."""
++    api_key = _api_key()
++    if not api_key:
++        return None
++    recent = "\n".join(f"{m['role']}: {m['content']}" for m in history[-4:])
++    user_message = f"[최근 대화]\n{recent or '(없음)'}\n\n[질문]\n{question}"
++    try:
++        intent = _json(_complete(api_key, INTENT_SYSTEM_PROMPT, user_message, max_tokens=50)).get("intent")
++    except Exception as e:
++        _log_failure("의도 분류 실패", e)
++        return None
++    return intent if intent in INTENTS else None
++
++
++def extract_changes(question: str) -> dict | None:
++    """바꿔 볼 조건. 허용 키만 남긴다. 실패 시 None, 찾은 게 없으면 {}."""
++    api_key = _api_key()
++    if not api_key:
++        return None
++    try:
++        changes = _json(_complete(api_key, CHANGE_SYSTEM_PROMPT, question, max_tokens=200)).get("changes")
++    except Exception as e:
++        _log_failure("조건 추출 실패", e)
++        return None
++    if not isinstance(changes, dict):
++        return {}
++    return {k: v for k, v in changes.items() if k in CHANGE_KEYS}
++
++
++def draft_reason(grade, reasons, ctx, calc_results, feedback: str = "") -> dict:
++    """판정 설명을 한 번만 생성하고 검증 결과를 함께 돌려준다 (폴백으로 바꾸지 않음).
++
++    재시도 여부는 그래프가 결정한다. feedback은 이전 시도에서 걸린 숫자 안내다.
++    반환: {"result": dict | None, "unknown": list[str], "error": bool}
++    """
++    api_key = _api_key()
++    if not api_key:
++        return {"result": None, "unknown": [], "error": True}
++    base_message = _build_user_message(grade, reasons, ctx, calc_results)
++    # 허용 숫자는 피드백을 붙이기 전의 입력에서만 뽑는다 (피드백 속 틀린 숫자가 허용되지 않도록)
++    allowed = _numbers(base_message)
++    message = base_message
++    if feedback:
++        message += f"\n\n[이전 답변의 문제 — 반드시 고치세요]\n{feedback}"
++    try:
++        parsed = _parse(_complete(api_key, SYSTEM_PROMPT, message))
++    except Exception as e:
++        _log_failure("설명 초안 실패", e)
++        return {"result": None, "unknown": [], "error": True}
++
++    caution = parsed["caution"] if reasons else ""
++    unknown = sorted(_numbers(parsed["reason"] + " " + caution) - allowed)
++    result = {"headline": HEADLINES.get(grade, ""), "reason": parsed["reason"], "caution": caution, "fallback": False}
++    return {"result": result, "unknown": unknown, "error": False}
+diff --git a/tests/test_chat_graph.py b/tests/test_chat_graph.py
+new file mode 100644
+index 0000000..324a2ed
+--- /dev/null
++++ b/tests/test_chat_graph.py
+@@ -0,0 +1,156 @@
++"""LangGraph 챗봇 흐름 테스트 (실제 LLM 호출 없음)."""
++
++import json
++import sys
++from pathlib import Path
++from types import SimpleNamespace
++
++import pytest
++from fastapi.testclient import TestClient
++
++ROOT = Path(__file__).resolve().parent.parent
++sys.path.insert(0, str(ROOT))
++
++from api import chat_graph, main  # noqa: E402
++from src import llm, loader  # noqa: E402
++
++pytestmark = pytest.mark.skipif(
++    not list(loader.DATA_DIR.glob("*.xlsx")), reason="data/에 엑셀 파일이 없음"
++)
++
++PROFILE = {
++    "distance_mode": "annual",
++    "annual_km": 15000,
++    "commute_km": 40,
++    "long_trip": "월3회이상",
++    "region": "성남시",
++    "home_charger": True,
++    "work_charger": "없음",
++    "hold_years": 7,
++    "model": "더 뉴 아이오닉5 2WD 롱레인지 19인치",
++    "current_efficiency": 11.2,
++    "ev_price_manwon": 5200,
++    "ice_price_manwon": 3600,
++    "has_scrap": True,
++}
++
++
++@pytest.fixture(scope="module")
++def client():
++    with TestClient(main.app) as c:
++        yield c
++
++
++def fake_llm(monkeypatch, *, intent="explain", changes=None, reasons=("판정 사유를 확인하세요.",)):
++    """system 프롬프트로 어떤 노드의 호출인지 구분해 준비된 응답을 돌려준다."""
++    calls = {"intent": 0, "change": 0, "reason": 0}
++    reason_iter = iter(reasons)
++
++    def create(**kwargs):
++        system = kwargs["system"]
++        if system == llm.INTENT_SYSTEM_PROMPT:
++            calls["intent"] += 1
++            text = intent if intent.startswith("{") or intent == "not json" else json.dumps({"intent": intent})
++        elif system == llm.CHANGE_SYSTEM_PROMPT:
++            calls["change"] += 1
++            text = json.dumps({"changes": changes or {}})
++        elif system == llm.SYSTEM_PROMPT:
++            calls["reason"] += 1
++            text = json.dumps({"reason": next(reason_iter), "caution": ""}, ensure_ascii=False)
++        else:
++            raise AssertionError("예상하지 못한 호출")
++        return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=text)])
++
++    client = SimpleNamespace(messages=SimpleNamespace(create=create))
++    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
++    monkeypatch.setattr(llm.anthropic, "Anthropic", lambda **kw: client)
++    return calls
++
++
++def ask(client, question, profile=PROFILE):
++    body = {"region": "성남시", "question": question, "history": []}
++    if profile is not None:
++        body["profile"] = profile
++    res = client.post("/chat", json=body)
++    assert res.status_code == 200
++    return res.json()
++
++
++def test_without_profile_skips_classification(client, monkeypatch):
++    calls = fake_llm(monkeypatch)
++    monkeypatch.setattr(llm, "answer_eligibility", lambda *a, **kw: {"answer": "자격 안내", "ok": True})
++    assert ask(client, "다자녀 혜택은?", profile=None) == {"answer": "자격 안내"}
++    assert calls["intent"] == 0
++
++
++def test_eligibility_route_uses_existing_chat(client, monkeypatch):
++    fake_llm(monkeypatch, intent="eligibility")
++    monkeypatch.setattr(llm, "answer_eligibility", lambda *a, **kw: {"answer": "자격 안내", "ok": True})
++    assert ask(client, "다자녀 혜택은?") == {"answer": "자격 안내"}
++
++
++def test_classification_failure_falls_back_to_eligibility(client, monkeypatch):
++    fake_llm(monkeypatch, intent="not json")
++    monkeypatch.setattr(llm, "answer_eligibility", lambda *a, **kw: {"answer": "자격 안내", "ok": True})
++    assert ask(client, "질문") == {"answer": "자격 안내"}
++
++
++def test_explain_passes_verification(client, monkeypatch):
++    calls = fake_llm(monkeypatch, reasons=["충전 환경과 절감 효과를 함께 보세요."])
++    out = ask(client, "왜 이런 판정이 나왔어요?")
++    assert "충전 환경과 절감 효과를 함께 보세요." in out["answer"]
++    assert "profile_changes" not in out
++    assert calls["reason"] == 1
++
++
++def test_explain_retries_after_unknown_number(client, monkeypatch):
++    calls = fake_llm(monkeypatch, reasons=["연간 999원 절감됩니다.", "절감 효과가 있습니다."])
++    out = ask(client, "왜요?")
++    assert "절감 효과가 있습니다." in out["answer"] and "999" not in out["answer"]
++    assert calls["reason"] == 2
++
++
++def test_explain_uses_safe_template_after_max_retries(client, monkeypatch):
++    calls = fake_llm(monkeypatch, reasons=["999원"] * 5)
++    out = ask(client, "왜요?")
++    assert calls["reason"] == chat_graph.MAX_RETRIES + 1
++    assert "999" not in out["answer"]
++    assert out["answer"].startswith(tuple(llm.HEADLINES.values()))
++
++
++def test_what_if_recalculates_and_returns_changes(client, monkeypatch):
++    fake_llm(monkeypatch, intent="what_if", changes={"annual_km": 30000}, reasons=["주행이 많아 절감 효과가 커집니다."])
++    out = ask(client, "1년에 3만km 타면요?")
++    assert out["profile_changes"] == {"annual_km": 30000, "distance_mode": "annual"}
++    assert "연간 주행거리" in out["answer"] and "→" in out["answer"]
++
++
++def test_what_if_invalid_value_asks_again(client, monkeypatch):
++    calls = fake_llm(monkeypatch, intent="what_if", changes={"hold_years": 10})
++    out = ask(client, "10년 타면요?")
++    assert "profile_changes" not in out
++    assert "다시 물어봐" in out["answer"]
++    assert calls["reason"] == 0
++
++
++def test_what_if_without_changes(client, monkeypatch):
++    fake_llm(monkeypatch, intent="what_if", changes={})
++    assert ask(client, "조건 바꾸면요?") == {"answer": chat_graph.NO_CHANGE_ANSWER}
++
++
++def test_off_topic(client, monkeypatch):
++    fake_llm(monkeypatch, intent="off_topic")
++    assert ask(client, "점심 뭐 먹지?") == {"answer": chat_graph.OFF_TOPIC_ANSWER}
++
++
++def test_eligibility_route_keeps_charger_evidence(client, monkeypatch):
++    fake_llm(monkeypatch, intent="eligibility")
++    captured = {}
++
++    def fake_answer(question, history, region, notice, rules, chargers=None):
++        captured["chargers"] = chargers
++        return {"answer": "충전소 안내", "ok": True}
++
++    monkeypatch.setattr(llm, "answer_eligibility", fake_answer)
++    assert ask(client, "우리 지역 충전소는 얼마나 있나요?") == {"answer": "충전소 안내"}
++    assert captured["chargers"]  # 결과 화면에서도 충전 인프라 근거가 그대로 전달된다
+diff --git a/web/components/ChatWidget.tsx b/web/components/ChatWidget.tsx
+index 2113b6d..2c13aa7 100644
+--- a/web/components/ChatWidget.tsx
++++ b/web/components/ChatWidget.tsx
+@@ -3,7 +3,7 @@
+ import Image from "next/image";
+ import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+ 
+-import { api, type ChatMessage } from "@/lib/api";
++import { api, type ChatMessage, type Profile } from "@/lib/api";
+ import { Mono } from "./Mono";
+ 
+ const EXAMPLES = [
+@@ -11,6 +11,8 @@ const EXAMPLES = [
+   "생애 최초 구매자 조건이 뭔가요?",
+   "우리 지역 충전소는 얼마나 있나요?",
+ ];
++/** 판정 결과가 있을 때 추가로 보여주는 예시 */
++const RESULT_EXAMPLES = ["왜 이런 판정이 나왔나요?", "1년에 2만km를 타면 어떻게 돼요?"];
+ 
+ /** 서버도 최근 6턴만 쓰지만, 요청 크기를 줄이려고 클라이언트에서도 자른다. */
+ const HISTORY_MESSAGES = 12;
+@@ -21,13 +23,18 @@ const COMMON_CONTACT = "한국환경공단 1661-0970";
+ interface Props {
+   /** 선택한 지자체. 없으면 공통 규정만으로 답한다. */
+   region: string | null;
++  /** 판정 결과 화면일 때만 전달. 있으면 판정 설명·조건 변경 질문도 답한다. */
++  profile?: Profile | null;
++  /** 챗봇이 조건을 바꿔 계산했을 때 화면의 판정도 같은 조건으로 갱신한다. */
++  onApplyChanges?: (changes: Partial<Profile>) => void;
+ }
+ 
+ /**
+- * 보조금 자격 문의 챗봇 (우하단 플로팅).
+- * 판정과 무관한 정보 제공이며, 답변 근거·안전장치는 서버의 answer_eligibility()가 담당한다.
++ * 환경이 챗봇 (우하단 플로팅).
++ * 판정 전에는 보조금 자격·충전소 문의만, 판정 후(profile 있음)에는 판정 설명·조건 변경 질문도 답한다.
++ * 질문 분류와 안전장치는 서버의 api/chat_graph.py(LangGraph)가 담당한다.
+  */
+-export function ChatWidget({ region }: Props) {
++export function ChatWidget({ region, profile = null, onApplyChanges }: Props) {
+   const [open, setOpen] = useState(false);
+   const [messages, setMessages] = useState<ChatMessage[]>([]);
+   const [draft, setDraft] = useState("");
+@@ -103,14 +110,18 @@ export function ChatWidget({ region }: Props) {
+     setWaiting(true);
+ 
+     let answer: string;
++    let changes: Partial<Profile> | undefined;
+     try {
+-      answer = (await api.chat(region, q, history)).answer;
++      const reply = await api.chat(region, q, history, profile);
++      answer = reply.answer;
++      changes = reply.profile_changes;
+     } catch {
+       answer = UNAVAILABLE;
+     }
+     if (id !== conversationRef.current) return; // 그사이 지자체가 바뀜
+     setMessages((m) => [...m, { role: "assistant", content: answer }]);
+     setWaiting(false);
++    if (changes) onApplyChanges?.(changes);
+   };
+ 
+   const submit = (e: FormEvent) => {
+@@ -137,7 +148,7 @@ export function ChatWidget({ region }: Props) {
+           <div className="chat-log" ref={logRef} aria-live="polite">
+             {messages.length === 0 && !waiting && (
+               <div className="chat-examples">
+-                {EXAMPLES.map((q) => (
++                {(profile ? [...RESULT_EXAMPLES, ...EXAMPLES] : EXAMPLES).map((q) => (
+                   <button key={q} type="button" className="chat-example" onClick={() => ask(q)}>
+                     {q}
+                   </button>
+diff --git a/web/components/EvSignalApp.tsx b/web/components/EvSignalApp.tsx
+index 548dc93..e322e72 100644
+--- a/web/components/EvSignalApp.tsx
++++ b/web/components/EvSignalApp.tsx
+@@ -126,6 +126,13 @@ export function EvSignalApp() {
+     }
+   };
+ 
++  /** 챗봇이 조건을 바꿔 계산하면, 같은 조건으로 화면의 판정도 다시 그린다 (지자체는 바꾸지 않음). */
++  const applyChatChanges = (changes: Partial<Profile>) => {
++    const next = { ...profile, ...changes };
++    setProfileState(next);
++    run(next);
++  };
++
+   return (
+     <>
+       <header className="site-header">
+@@ -192,7 +199,11 @@ export function EvSignalApp() {
+       </main>
+ 
+       {/* 모든 화면에서 표시. 지자체를 고르기 전에는 공통 규정만으로 답하고, 고르거나 바꾸면 대화를 새로 시작한다. */}
+-      <ChatWidget region={profile.region} />
++      <ChatWidget
++        region={profile.region}
++        profile={view === "result" && result.state === "done" ? profile : null}
++        onApplyChanges={applyChatChanges}
++      />
+ 
+       <footer className="site-footer">
+         <div className="container">
+diff --git a/web/lib/api.ts b/web/lib/api.ts
+index f4129b1..4377742 100644
+--- a/web/lib/api.ts
++++ b/web/lib/api.ts
+@@ -72,6 +72,11 @@ export interface ChatMessage {
+   content: string;
+ }
+ 
++export interface ChatReply {
++  answer: string;
++  profile_changes?: Partial<Profile>;
++}
++
+ export class ApiError extends Error {
+   constructor(public status: number, message: string) {
+     super(message);
+@@ -106,7 +111,11 @@ export const api = {
+   modelPrices: () => request<Record<string, ModelPrice>>("/model-prices"),
+   contact: (region: string) =>
+     request<{ contact: string | null }>(`/contact?region=${encodeURIComponent(region)}`),
+-  /** region이 null이면 공통 규정만으로 답한다. */
+-  chat: (region: string | null, question: string, history: ChatMessage[]) =>
+-    request<{ answer: string }>("/chat", { region, question, history }),
++  /**
++   * region이 null이면 공통 규정만으로 답한다.
++   * profile을 보내면(판정 결과 화면) 판정 설명·조건 변경 질문도 처리하고,
++   * 조건을 바꿨으면 profile_changes를 돌려준다.
++   */
++  chat: (region: string | null, question: string, history: ChatMessage[], profile: Profile | null = null) =>
++    request<ChatReply>("/chat", { region, question, history, ...(profile ? { profile } : {}) }),
+ };

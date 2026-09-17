@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
-import { api, type ChatMessage } from "@/lib/api";
+import { api, type ChatMessage, type Profile } from "@/lib/api";
 import { Mono } from "./Mono";
 
 const EXAMPLES = [
@@ -11,6 +11,8 @@ const EXAMPLES = [
   "생애 최초 구매자 조건이 뭔가요?",
   "우리 지역 충전소는 얼마나 있나요?",
 ];
+/** 판정 결과가 있을 때 추가로 보여주는 예시 */
+const RESULT_EXAMPLES = ["왜 이런 판정이 나왔나요?", "1년에 2만km를 타면 어떻게 돼요?"];
 
 /** 서버도 최근 6턴만 쓰지만, 요청 크기를 줄이려고 클라이언트에서도 자른다. */
 const HISTORY_MESSAGES = 12;
@@ -21,13 +23,18 @@ const COMMON_CONTACT = "한국환경공단 1661-0970";
 interface Props {
   /** 선택한 지자체. 없으면 공통 규정만으로 답한다. */
   region: string | null;
+  /** 판정 결과 화면일 때만 전달. 있으면 판정 설명·조건 변경 질문도 답한다. */
+  profile?: Profile | null;
+  /** 챗봇이 조건을 바꿔 계산했을 때 화면의 판정도 같은 조건으로 갱신한다. */
+  onApplyChanges?: (changes: Partial<Profile>) => void;
 }
 
 /**
- * 보조금 자격 문의 챗봇 (우하단 플로팅).
- * 판정과 무관한 정보 제공이며, 답변 근거·안전장치는 서버의 answer_eligibility()가 담당한다.
+ * 환경이 챗봇 (우하단 플로팅).
+ * 판정 전에는 보조금 자격·충전소 문의만, 판정 후(profile 있음)에는 판정 설명·조건 변경 질문도 답한다.
+ * 질문 분류와 안전장치는 서버의 api/chat_graph.py(LangGraph)가 담당한다.
  */
-export function ChatWidget({ region }: Props) {
+export function ChatWidget({ region, profile = null, onApplyChanges }: Props) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -103,14 +110,18 @@ export function ChatWidget({ region }: Props) {
     setWaiting(true);
 
     let answer: string;
+    let changes: Partial<Profile> | undefined;
     try {
-      answer = (await api.chat(region, q, history)).answer;
+      const reply = await api.chat(region, q, history, profile);
+      answer = reply.answer;
+      changes = reply.profile_changes;
     } catch {
       answer = UNAVAILABLE;
     }
     if (id !== conversationRef.current) return; // 그사이 지자체가 바뀜
     setMessages((m) => [...m, { role: "assistant", content: answer }]);
     setWaiting(false);
+    if (changes) onApplyChanges?.(changes);
   };
 
   const submit = (e: FormEvent) => {
@@ -137,7 +148,7 @@ export function ChatWidget({ region }: Props) {
           <div className="chat-log" ref={logRef} aria-live="polite">
             {messages.length === 0 && !waiting && (
               <div className="chat-examples">
-                {EXAMPLES.map((q) => (
+                {(profile ? [...RESULT_EXAMPLES, ...EXAMPLES] : EXAMPLES).map((q) => (
                   <button key={q} type="button" className="chat-example" onClick={() => ask(q)}>
                     {q}
                   </button>

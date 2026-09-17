@@ -72,6 +72,11 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface ChatReply {
+  answer: string;
+  profile_changes?: Partial<Profile>;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -106,7 +111,11 @@ export const api = {
   modelPrices: () => request<Record<string, ModelPrice>>("/model-prices"),
   contact: (region: string) =>
     request<{ contact: string | null }>(`/contact?region=${encodeURIComponent(region)}`),
-  /** region이 null이면 공통 규정만으로 답한다. */
-  chat: (region: string | null, question: string, history: ChatMessage[]) =>
-    request<{ answer: string }>("/chat", { region, question, history }),
+  /**
+   * region이 null이면 공통 규정만으로 답한다.
+   * profile을 보내면(판정 결과 화면) 판정 설명·조건 변경 질문도 처리하고,
+   * 조건을 바꿨으면 profile_changes를 돌려준다.
+   */
+  chat: (region: string | null, question: string, history: ChatMessage[], profile: Profile | null = null) =>
+    request<ChatReply>("/chat", { region, question, history, ...(profile ? { profile } : {}) }),
 };

@@ -438,3 +438,106 @@ def answer_eligibility(
     for message in messages:
         allowed |= _digit_groups(message["content"])
     return {"answer": _replace_unsupported_sentences(answer, allowed), "ok": True}
+
+
+# --- LangGraph 챗봇용 -------------------------------------------------------
+# api/chat_graph.py의 노드가 호출한다. 판정·계산은 여전히 코드가 하고, 여기서는
+# (1) 질문 의도 분류, (2) 조건 변경값 추출, (3) 판정 설명 초안 1회 생성만 한다.
+
+INTENTS = ("eligibility", "explain", "what_if", "off_topic")
+
+INTENT_SYSTEM_PROMPT = """사용자는 전기차 전환 판정 결과를 이미 받은 상태입니다.
+질문을 아래 중 하나로 분류하세요.
+
+- eligibility: 보조금 자격·우대 대상·신청 절차·서류·지자체 공지·지역 충전소 현황에 대한 질문
+- explain: 지금 받은 판정 결과(등급, 절감액, 회수 기간 등)의 이유를 묻는 질문
+- what_if: 주행거리, 출퇴근 거리, 장거리 빈도, 충전기, 보유 기간, 차량 가격, 비교 내연기관차 연비, 폐차 여부를 바꿔 보는 질문
+- off_topic: 전기차 전환·보조금과 무관한 질문
+
+출력은 JSON만. {"intent": "..."}"""
+
+CHANGE_SYSTEM_PROMPT = """사용자 질문에서 '바꿔 보고 싶은 조건'만 뽑아 JSON으로 출력하세요.
+질문에 없는 항목은 넣지 마세요. 값을 추정하거나 계산하지 마세요.
+
+사용할 수 있는 키:
+- annual_km: 연간 주행거리 (정수, km). "2만km" → 20000
+- commute_km: 출퇴근 왕복 거리 (km)
+- long_trip: "거의없음" | "월1~2회" | "월3회이상"
+- home_charger: 주거지 충전기 있음 (true/false)
+- work_charger: "있음" | "없음" | "해당없음"
+- hold_years: 보유 기간 (3 | 5 | 7)
+- current_efficiency: 비교 내연기관차 연비 (km/L)
+- ev_price_manwon: 전기차 가격 (만원, 정수)
+- ice_price_manwon: 비교 내연기관차 가격 (만원, 정수)
+- has_scrap: 현재 차량 폐차·매도 예정 (true/false)
+
+출력은 JSON만. 예: {"changes": {"annual_km": 20000}}"""
+
+CHANGE_KEYS = {
+    "annual_km", "commute_km", "long_trip", "home_charger", "work_charger",
+    "hold_years", "current_efficiency", "ev_price_manwon", "ice_price_manwon", "has_scrap",
+}
+
+
+def _json(text: str) -> dict:
+    data = json.loads(CODE_FENCE_RE.sub("", text.strip()))
+    if not isinstance(data, dict):
+        raise ValueError("JSON 객체가 아닙니다")
+    return data
+
+
+def classify_intent(question: str, history: list[dict]) -> str | None:
+    """질문 의도. 키 없음·실패 시 None (호출부가 기존 자격 문의로 처리)."""
+    api_key = _api_key()
+    if not api_key:
+        return None
+    recent = "\n".join(f"{m['role']}: {m['content']}" for m in history[-4:])
+    user_message = f"[최근 대화]\n{recent or '(없음)'}\n\n[질문]\n{question}"
+    try:
+        intent = _json(_complete(api_key, INTENT_SYSTEM_PROMPT, user_message, max_tokens=50)).get("intent")
+    except Exception as e:
+        _log_failure("의도 분류 실패", e)
+        return None
+    return intent if intent in INTENTS else None
+
+
+def extract_changes(question: str) -> dict | None:
+    """바꿔 볼 조건. 허용 키만 남긴다. 실패 시 None, 찾은 게 없으면 {}."""
+    api_key = _api_key()
+    if not api_key:
+        return None
+    try:
+        changes = _json(_complete(api_key, CHANGE_SYSTEM_PROMPT, question, max_tokens=200)).get("changes")
+    except Exception as e:
+        _log_failure("조건 추출 실패", e)
+        return None
+    if not isinstance(changes, dict):
+        return {}
+    return {k: v for k, v in changes.items() if k in CHANGE_KEYS}
+
+
+def draft_reason(grade, reasons, ctx, calc_results, feedback: str = "") -> dict:
+    """판정 설명을 한 번만 생성하고 검증 결과를 함께 돌려준다 (폴백으로 바꾸지 않음).
+
+    재시도 여부는 그래프가 결정한다. feedback은 이전 시도에서 걸린 숫자 안내다.
+    반환: {"result": dict | None, "unknown": list[str], "error": bool}
+    """
+    api_key = _api_key()
+    if not api_key:
+        return {"result": None, "unknown": [], "error": True}
+    base_message = _build_user_message(grade, reasons, ctx, calc_results)
+    # 허용 숫자는 피드백을 붙이기 전의 입력에서만 뽑는다 (피드백 속 틀린 숫자가 허용되지 않도록)
+    allowed = _numbers(base_message)
+    message = base_message
+    if feedback:
+        message += f"\n\n[이전 답변의 문제 — 반드시 고치세요]\n{feedback}"
+    try:
+        parsed = _parse(_complete(api_key, SYSTEM_PROMPT, message))
+    except Exception as e:
+        _log_failure("설명 초안 실패", e)
+        return {"result": None, "unknown": [], "error": True}
+
+    caution = parsed["caution"] if reasons else ""
+    unknown = sorted(_numbers(parsed["reason"] + " " + caution) - allowed)
+    result = {"headline": HEADLINES.get(grade, ""), "reason": parsed["reason"], "caution": caution, "fallback": False}
+    return {"result": result, "unknown": unknown, "error": False}

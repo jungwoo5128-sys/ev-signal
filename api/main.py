@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from api import service
+from api import chat_graph, service
 
 
 @asynccontextmanager
@@ -90,5 +90,6 @@ def contact(request: Request, region: str):
 
 
 @app.post("/chat")
-def chat(request: Request, inp: service.ChatInput):
-    return service.chat(store(request), inp)
+def chat(request: Request, inp: chat_graph.GraphChatInput):
+    """LangGraph로 의도를 나눠 답한다. profile이 없으면 기존 자격 문의와 같다."""
+    return chat_graph.run(store(request), inp)

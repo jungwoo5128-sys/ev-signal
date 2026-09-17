@@ -126,6 +126,13 @@ export function EvSignalApp() {
     }
   };
 
+  /** 챗봇이 조건을 바꿔 계산하면, 같은 조건으로 화면의 판정도 다시 그린다 (지자체는 바꾸지 않음). */
+  const applyChatChanges = (changes: Partial<Profile>) => {
+    const next = { ...profile, ...changes };
+    setProfileState(next);
+    run(next);
+  };
+
   return (
     <>
       <header className="site-header">
@@ -192,7 +199,11 @@ export function EvSignalApp() {
       </main>
 
       {/* 모든 화면에서 표시. 지자체를 고르기 전에는 공통 규정만으로 답하고, 고르거나 바꾸면 대화를 새로 시작한다. */}
-      <ChatWidget region={profile.region} />
+      <ChatWidget
+        region={profile.region}
+        profile={view === "result" && result.state === "done" ? profile : null}
+        onApplyChanges={applyChatChanges}
+      />
 
       <footer className="site-footer">
         <div className="container">
