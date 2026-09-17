@@ -1,0 +1,1138 @@
+{
+  "_meta": {
+    "collected_at": "2026-09-18",
+    "source": "한국환경공단 전기자동차 충전소 정보 API (getChargerInfo)",
+    "criteria": "delYn=Y·버스전용(chgerType 11) 제외, 급속 output≥50kW, 완속 <50kW, output 없으면 02 완속·06 급속, 충전소=고유 statId"
+  },
+  "서울특별시": {
+    "stations": 12792,
+    "chargers": 74032,
+    "fast": 4793,
+    "slow": 69238,
+    "unclassified": 1,
+    "collected_at": "2026-09-18"
+  },
+  "부산광역시": {
+    "stations": 5097,
+    "chargers": 31975,
+    "fast": 1954,
+    "slow": 30019,
+    "unclassified": 2,
+    "collected_at": "2026-09-18"
+  },
+  "대구광역시": {
+    "stations": 4043,
+    "chargers": 24350,
+    "fast": 1728,
+    "slow": 22622,
+    "collected_at": "2026-09-18"
+  },
+  "인천광역시": {
+    "stations": 5160,
+    "chargers": 32611,
+    "fast": 2304,
+    "slow": 30305,
+    "unclassified": 2,
+    "collected_at": "2026-09-18"
+  },
+  "광주광역시": {
+    "stations": 3408,
+    "chargers": 15626,
+    "fast": 1088,
+    "slow": 14538,
+    "collected_at": "2026-09-18"
+  },
+  "대전광역시": {
+    "stations": 2759,
+    "chargers": 14836,
+    "fast": 1283,
+    "slow": 13550,
+    "unclassified": 3,
+    "collected_at": "2026-09-18"
+  },
+  "울산광역시": {
+    "stations": 2078,
+    "chargers": 10540,
+    "fast": 1053,
+    "slow": 9487,
+    "collected_at": "2026-09-18"
+  },
+  "세종특별자치시": {
+    "stations": 1034,
+    "chargers": 6481,
+    "fast": 485,
+    "slow": 5996,
+    "collected_at": "2026-09-18"
+  },
+  "수원시": {
+    "stations": 1929,
+    "chargers": 12368,
+    "fast": 1041,
+    "slow": 11324,
+    "unclassified": 3,
+    "collected_at": "2026-09-18"
+  },
+  "성남시": {
+    "stations": 1843,
+    "chargers": 10812,
+    "fast": 841,
+    "slow": 9971,
+    "collected_at": "2026-09-18"
+  },
+  "의정부시": {
+    "stations": 750,
+    "chargers": 4313,
+    "fast": 246,
+    "slow": 4067,
+    "collected_at": "2026-09-18"
+  },
+  "안양시": {
+    "stations": 789,
+    "chargers": 4505,
+    "fast": 235,
+    "slow": 4268,
+    "unclassified": 2,
+    "collected_at": "2026-09-18"
+  },
+  "부천시": {
+    "stations": 962,
+    "chargers": 5128,
+    "fast": 420,
+    "slow": 4706,
+    "unclassified": 2,
+    "collected_at": "2026-09-18"
+  },
+  "광명시": {
+    "stations": 330,
+    "chargers": 2594,
+    "fast": 150,
+    "slow": 2444,
+    "collected_at": "2026-09-18"
+  },
+  "평택시": {
+    "stations": 1139,
+    "chargers": 7752,
+    "fast": 519,
+    "slow": 7233,
+    "collected_at": "2026-09-18"
+  },
+  "동두천시": {
+    "stations": 168,
+    "chargers": 791,
+    "fast": 81,
+    "slow": 710,
+    "collected_at": "2026-09-18"
+  },
+  "안산시": {
+    "stations": 886,
+    "chargers": 5023,
+    "fast": 515,
+    "slow": 4508,
+    "collected_at": "2026-09-18"
+  },
+  "고양시": {
+    "stations": 1871,
+    "chargers": 12089,
+    "fast": 895,
+    "slow": 11194,
+    "collected_at": "2026-09-18"
+  },
+  "과천시": {
+    "stations": 124,
+    "chargers": 970,
+    "fast": 162,
+    "slow": 808,
+    "collected_at": "2026-09-18"
+  },
+  "구리시": {
+    "stations": 329,
+    "chargers": 1858,
+    "fast": 120,
+    "slow": 1738,
+    "collected_at": "2026-09-18"
+  },
+  "남양주시": {
+    "stations": 1301,
+    "chargers": 8379,
+    "fast": 458,
+    "slow": 7921,
+    "collected_at": "2026-09-18"
+  },
+  "오산시": {
+    "stations": 420,
+    "chargers": 3165,
+    "fast": 175,
+    "slow": 2990,
+    "collected_at": "2026-09-18"
+  },
+  "시흥시": {
+    "stations": 1020,
+    "chargers": 6089,
+    "fast": 419,
+    "slow": 5670,
+    "collected_at": "2026-09-18"
+  },
+  "군포시": {
+    "stations": 355,
+    "chargers": 1862,
+    "fast": 121,
+    "slow": 1741,
+    "collected_at": "2026-09-18"
+  },
+  "의왕시": {
+    "stations": 299,
+    "chargers": 1822,
+    "fast": 147,
+    "slow": 1675,
+    "collected_at": "2026-09-18"
+  },
+  "하남시": {
+    "stations": 580,
+    "chargers": 4706,
+    "fast": 203,
+    "slow": 4503,
+    "collected_at": "2026-09-18"
+  },
+  "용인시": {
+    "stations": 2321,
+    "chargers": 14899,
+    "fast": 803,
+    "slow": 14094,
+    "unclassified": 2,
+    "collected_at": "2026-09-18"
+  },
+  "파주시": {
+    "stations": 939,
+    "chargers": 6241,
+    "fast": 347,
+    "slow": 5894,
+    "collected_at": "2026-09-18"
+  },
+  "이천시": {
+    "stations": 493,
+    "chargers": 2266,
+    "fast": 271,
+    "slow": 1995,
+    "collected_at": "2026-09-18"
+  },
+  "안성시": {
+    "stations": 483,
+    "chargers": 2658,
+    "fast": 290,
+    "slow": 2368,
+    "collected_at": "2026-09-18"
+  },
+  "김포시": {
+    "stations": 944,
+    "chargers": 6504,
+    "fast": 403,
+    "slow": 6101,
+    "collected_at": "2026-09-18"
+  },
+  "화성시": {
+    "stations": 1975,
+    "chargers": 13588,
+    "fast": 917,
+    "slow": 12670,
+    "unclassified": 1,
+    "collected_at": "2026-09-18"
+  },
+  "광주시": {
+    "stations": 619,
+    "chargers": 2980,
+    "fast": 267,
+    "slow": 2713,
+    "collected_at": "2026-09-18"
+  },
+  "양주시": {
+    "stations": 635,
+    "chargers": 4325,
+    "fast": 271,
+    "slow": 4054,
+    "collected_at": "2026-09-18"
+  },
+  "포천시": {
+    "stations": 315,
+    "chargers": 1207,
+    "fast": 216,
+    "slow": 991,
+    "collected_at": "2026-09-18"
+  },
+  "여주시": {
+    "stations": 265,
+    "chargers": 1055,
+    "fast": 186,
+    "slow": 869,
+    "collected_at": "2026-09-18"
+  },
+  "연천군": {
+    "stations": 114,
+    "chargers": 337,
+    "fast": 85,
+    "slow": 252,
+    "collected_at": "2026-09-18"
+  },
+  "가평군": {
+    "stations": 312,
+    "chargers": 708,
+    "fast": 133,
+    "slow": 575,
+    "collected_at": "2026-09-18"
+  },
+  "양평군": {
+    "stations": 255,
+    "chargers": 824,
+    "fast": 199,
+    "slow": 625,
+    "collected_at": "2026-09-18"
+  },
+  "춘천시": {
+    "stations": 676,
+    "chargers": 3327,
+    "fast": 395,
+    "slow": 2932,
+    "collected_at": "2026-09-18"
+  },
+  "원주시": {
+    "stations": 958,
+    "chargers": 4621,
+    "fast": 456,
+    "slow": 4165,
+    "collected_at": "2026-09-18"
+  },
+  "강릉시": {
+    "stations": 564,
+    "chargers": 2429,
+    "fast": 359,
+    "slow": 2070,
+    "collected_at": "2026-09-18"
+  },
+  "동해시": {
+    "stations": 214,
+    "chargers": 840,
+    "fast": 92,
+    "slow": 747,
+    "unclassified": 1,
+    "collected_at": "2026-09-18"
+  },
+  "태백시": {
+    "stations": 106,
+    "chargers": 364,
+    "fast": 72,
+    "slow": 292,
+    "collected_at": "2026-09-18"
+  },
+  "속초시": {
+    "stations": 315,
+    "chargers": 1104,
+    "fast": 162,
+    "slow": 942,
+    "collected_at": "2026-09-18"
+  },
+  "삼척시": {
+    "stations": 196,
+    "chargers": 781,
+    "fast": 177,
+    "slow": 604,
+    "collected_at": "2026-09-18"
+  },
+  "홍천군": {
+    "stations": 203,
+    "chargers": 614,
+    "fast": 167,
+    "slow": 447,
+    "collected_at": "2026-09-18"
+  },
+  "횡성군": {
+    "stations": 152,
+    "chargers": 401,
+    "fast": 104,
+    "slow": 297,
+    "collected_at": "2026-09-18"
+  },
+  "영월군": {
+    "stations": 110,
+    "chargers": 261,
+    "fast": 78,
+    "slow": 183,
+    "collected_at": "2026-09-18"
+  },
+  "평창군": {
+    "stations": 186,
+    "chargers": 606,
+    "fast": 149,
+    "slow": 457,
+    "collected_at": "2026-09-18"
+  },
+  "정선군": {
+    "stations": 160,
+    "chargers": 508,
+    "fast": 124,
+    "slow": 384,
+    "collected_at": "2026-09-18"
+  },
+  "철원군": {
+    "stations": 110,
+    "chargers": 288,
+    "fast": 97,
+    "slow": 191,
+    "collected_at": "2026-09-18"
+  },
+  "화천군": {
+    "stations": 78,
+    "chargers": 126,
+    "fast": 48,
+    "slow": 78,
+    "collected_at": "2026-09-18"
+  },
+  "양구군": {
+    "stations": 71,
+    "chargers": 138,
+    "fast": 57,
+    "slow": 81,
+    "collected_at": "2026-09-18"
+  },
+  "인제군": {
+    "stations": 116,
+    "chargers": 347,
+    "fast": 98,
+    "slow": 249,
+    "collected_at": "2026-09-18"
+  },
+  "고성군(강원)": {
+    "stations": 121,
+    "chargers": 335,
+    "fast": 75,
+    "slow": 260,
+    "collected_at": "2026-09-18"
+  },
+  "양양군": {
+    "stations": 109,
+    "chargers": 316,
+    "fast": 104,
+    "slow": 212,
+    "collected_at": "2026-09-18"
+  },
+  "청주시": {
+    "stations": 1832,
+    "chargers": 10116,
+    "fast": 878,
+    "slow": 9238,
+    "collected_at": "2026-09-18"
+  },
+  "충주시": {
+    "stations": 542,
+    "chargers": 2474,
+    "fast": 345,
+    "slow": 2129,
+    "collected_at": "2026-09-18"
+  },
+  "제천시": {
+    "stations": 315,
+    "chargers": 1208,
+    "fast": 209,
+    "slow": 999,
+    "collected_at": "2026-09-18"
+  },
+  "보은군": {
+    "stations": 83,
+    "chargers": 177,
+    "fast": 73,
+    "slow": 104,
+    "collected_at": "2026-09-18"
+  },
+  "옥천군": {
+    "stations": 118,
+    "chargers": 313,
+    "fast": 105,
+    "slow": 208,
+    "collected_at": "2026-09-18"
+  },
+  "영동군": {
+    "stations": 101,
+    "chargers": 224,
+    "fast": 125,
+    "slow": 99,
+    "collected_at": "2026-09-18"
+  },
+  "증평군": {
+    "stations": 84,
+    "chargers": 354,
+    "fast": 52,
+    "slow": 302,
+    "collected_at": "2026-09-18"
+  },
+  "진천군": {
+    "stations": 253,
+    "chargers": 1050,
+    "fast": 164,
+    "slow": 886,
+    "collected_at": "2026-09-18"
+  },
+  "괴산군": {
+    "stations": 89,
+    "chargers": 223,
+    "fast": 101,
+    "slow": 122,
+    "collected_at": "2026-09-18"
+  },
+  "음성군": {
+    "stations": 271,
+    "chargers": 1179,
+    "fast": 185,
+    "slow": 994,
+    "collected_at": "2026-09-18"
+  },
+  "단양군": {
+    "stations": 101,
+    "chargers": 241,
+    "fast": 89,
+    "slow": 152,
+    "collected_at": "2026-09-18"
+  },
+  "천안시": {
+    "stations": 1413,
+    "chargers": 7118,
+    "fast": 639,
+    "slow": 6479,
+    "collected_at": "2026-09-18"
+  },
+  "공주시": {
+    "stations": 259,
+    "chargers": 871,
+    "fast": 206,
+    "slow": 665,
+    "collected_at": "2026-09-18"
+  },
+  "보령시": {
+    "stations": 240,
+    "chargers": 852,
+    "fast": 220,
+    "slow": 632,
+    "collected_at": "2026-09-18"
+  },
+  "아산시": {
+    "stations": 885,
+    "chargers": 4650,
+    "fast": 365,
+    "slow": 4285,
+    "collected_at": "2026-09-18"
+  },
+  "서산시": {
+    "stations": 427,
+    "chargers": 1614,
+    "fast": 222,
+    "slow": 1392,
+    "collected_at": "2026-09-18"
+  },
+  "논산시": {
+    "stations": 241,
+    "chargers": 742,
+    "fast": 171,
+    "slow": 571,
+    "collected_at": "2026-09-18"
+  },
+  "계룡시": {
+    "stations": 86,
+    "chargers": 575,
+    "fast": 59,
+    "slow": 516,
+    "collected_at": "2026-09-18"
+  },
+  "당진시": {
+    "stations": 424,
+    "chargers": 2112,
+    "fast": 227,
+    "slow": 1885,
+    "collected_at": "2026-09-18"
+  },
+  "금산군": {
+    "stations": 103,
+    "chargers": 285,
+    "fast": 80,
+    "slow": 205,
+    "collected_at": "2026-09-18"
+  },
+  "부여군": {
+    "stations": 120,
+    "chargers": 306,
+    "fast": 103,
+    "slow": 203,
+    "collected_at": "2026-09-18"
+  },
+  "서천군": {
+    "stations": 130,
+    "chargers": 357,
+    "fast": 135,
+    "slow": 222,
+    "collected_at": "2026-09-18"
+  },
+  "청양군": {
+    "stations": 65,
+    "chargers": 178,
+    "fast": 34,
+    "slow": 144,
+    "collected_at": "2026-09-18"
+  },
+  "홍성군": {
+    "stations": 218,
+    "chargers": 1093,
+    "fast": 158,
+    "slow": 935,
+    "collected_at": "2026-09-18"
+  },
+  "예산군": {
+    "stations": 222,
+    "chargers": 789,
+    "fast": 223,
+    "slow": 566,
+    "collected_at": "2026-09-18"
+  },
+  "태안군": {
+    "stations": 159,
+    "chargers": 458,
+    "fast": 111,
+    "slow": 347,
+    "collected_at": "2026-09-18"
+  },
+  "전주시": {
+    "stations": 1639,
+    "chargers": 6777,
+    "fast": 523,
+    "slow": 6254,
+    "collected_at": "2026-09-18"
+  },
+  "군산시": {
+    "stations": 782,
+    "chargers": 3189,
+    "fast": 423,
+    "slow": 2766,
+    "collected_at": "2026-09-18"
+  },
+  "익산시": {
+    "stations": 624,
+    "chargers": 2501,
+    "fast": 278,
+    "slow": 2223,
+    "collected_at": "2026-09-18"
+  },
+  "정읍시": {
+    "stations": 326,
+    "chargers": 885,
+    "fast": 241,
+    "slow": 644,
+    "collected_at": "2026-09-18"
+  },
+  "남원시": {
+    "stations": 246,
+    "chargers": 675,
+    "fast": 227,
+    "slow": 448,
+    "collected_at": "2026-09-18"
+  },
+  "김제시": {
+    "stations": 222,
+    "chargers": 642,
+    "fast": 167,
+    "slow": 475,
+    "collected_at": "2026-09-18"
+  },
+  "완주군": {
+    "stations": 305,
+    "chargers": 1124,
+    "fast": 181,
+    "slow": 943,
+    "collected_at": "2026-09-18"
+  },
+  "진안군": {
+    "stations": 84,
+    "chargers": 194,
+    "fast": 132,
+    "slow": 62,
+    "collected_at": "2026-09-18"
+  },
+  "무주군": {
+    "stations": 107,
+    "chargers": 276,
+    "fast": 90,
+    "slow": 186,
+    "collected_at": "2026-09-18"
+  },
+  "장수군": {
+    "stations": 62,
+    "chargers": 127,
+    "fast": 94,
+    "slow": 33,
+    "collected_at": "2026-09-18"
+  },
+  "임실군": {
+    "stations": 91,
+    "chargers": 233,
+    "fast": 132,
+    "slow": 101,
+    "collected_at": "2026-09-18"
+  },
+  "순창군": {
+    "stations": 76,
+    "chargers": 211,
+    "fast": 56,
+    "slow": 155,
+    "collected_at": "2026-09-18"
+  },
+  "고창군": {
+    "stations": 138,
+    "chargers": 316,
+    "fast": 122,
+    "slow": 194,
+    "collected_at": "2026-09-18"
+  },
+  "부안군": {
+    "stations": 165,
+    "chargers": 405,
+    "fast": 137,
+    "slow": 268,
+    "collected_at": "2026-09-18"
+  },
+  "목포시": {
+    "stations": 490,
+    "chargers": 2025,
+    "fast": 167,
+    "slow": 1858,
+    "collected_at": "2026-09-18"
+  },
+  "여수시": {
+    "stations": 675,
+    "chargers": 2480,
+    "fast": 369,
+    "slow": 2111,
+    "collected_at": "2026-09-18"
+  },
+  "순천시": {
+    "stations": 649,
+    "chargers": 3188,
+    "fast": 272,
+    "slow": 2916,
+    "collected_at": "2026-09-18"
+  },
+  "나주시": {
+    "stations": 431,
+    "chargers": 1611,
+    "fast": 224,
+    "slow": 1387,
+    "collected_at": "2026-09-18"
+  },
+  "광양시": {
+    "stations": 434,
+    "chargers": 1903,
+    "fast": 250,
+    "slow": 1653,
+    "collected_at": "2026-09-18"
+  },
+  "담양군": {
+    "stations": 147,
+    "chargers": 356,
+    "fast": 79,
+    "slow": 277,
+    "collected_at": "2026-09-18"
+  },
+  "곡성군": {
+    "stations": 77,
+    "chargers": 180,
+    "fast": 59,
+    "slow": 121,
+    "collected_at": "2026-09-18"
+  },
+  "구례군": {
+    "stations": 105,
+    "chargers": 248,
+    "fast": 89,
+    "slow": 159,
+    "collected_at": "2026-09-18"
+  },
+  "고흥군": {
+    "stations": 123,
+    "chargers": 266,
+    "fast": 100,
+    "slow": 166,
+    "collected_at": "2026-09-18"
+  },
+  "보성군": {
+    "stations": 93,
+    "chargers": 233,
+    "fast": 102,
+    "slow": 131,
+    "collected_at": "2026-09-18"
+  },
+  "화순군": {
+    "stations": 164,
+    "chargers": 605,
+    "fast": 85,
+    "slow": 520,
+    "collected_at": "2026-09-18"
+  },
+  "장흥군": {
+    "stations": 95,
+    "chargers": 219,
+    "fast": 51,
+    "slow": 168,
+    "collected_at": "2026-09-18"
+  },
+  "강진군": {
+    "stations": 68,
+    "chargers": 144,
+    "fast": 74,
+    "slow": 70,
+    "collected_at": "2026-09-18"
+  },
+  "해남군": {
+    "stations": 134,
+    "chargers": 333,
+    "fast": 99,
+    "slow": 234,
+    "collected_at": "2026-09-18"
+  },
+  "영암군": {
+    "stations": 130,
+    "chargers": 525,
+    "fast": 83,
+    "slow": 442,
+    "collected_at": "2026-09-18"
+  },
+  "무안군": {
+    "stations": 235,
+    "chargers": 922,
+    "fast": 135,
+    "slow": 787,
+    "collected_at": "2026-09-18"
+  },
+  "함평군": {
+    "stations": 102,
+    "chargers": 290,
+    "fast": 86,
+    "slow": 204,
+    "collected_at": "2026-09-18"
+  },
+  "영광군": {
+    "stations": 154,
+    "chargers": 448,
+    "fast": 76,
+    "slow": 372,
+    "collected_at": "2026-09-18"
+  },
+  "장성군": {
+    "stations": 103,
+    "chargers": 277,
+    "fast": 83,
+    "slow": 194,
+    "collected_at": "2026-09-18"
+  },
+  "완도군": {
+    "stations": 88,
+    "chargers": 185,
+    "fast": 77,
+    "slow": 108,
+    "collected_at": "2026-09-18"
+  },
+  "진도군": {
+    "stations": 60,
+    "chargers": 133,
+    "fast": 64,
+    "slow": 69,
+    "collected_at": "2026-09-18"
+  },
+  "신안군": {
+    "stations": 74,
+    "chargers": 164,
+    "fast": 48,
+    "slow": 116,
+    "collected_at": "2026-09-18"
+  },
+  "포항시": {
+    "stations": 1071,
+    "chargers": 5039,
+    "fast": 689,
+    "slow": 4350,
+    "collected_at": "2026-09-18"
+  },
+  "경주시": {
+    "stations": 640,
+    "chargers": 2377,
+    "fast": 365,
+    "slow": 2012,
+    "collected_at": "2026-09-18"
+  },
+  "김천시": {
+    "stations": 334,
+    "chargers": 1426,
+    "fast": 254,
+    "slow": 1172,
+    "collected_at": "2026-09-18"
+  },
+  "안동시": {
+    "stations": 361,
+    "chargers": 1365,
+    "fast": 272,
+    "slow": 1093,
+    "collected_at": "2026-09-18"
+  },
+  "구미시": {
+    "stations": 852,
+    "chargers": 3973,
+    "fast": 461,
+    "slow": 3512,
+    "collected_at": "2026-09-18"
+  },
+  "영주시": {
+    "stations": 201,
+    "chargers": 632,
+    "fast": 183,
+    "slow": 449,
+    "collected_at": "2026-09-18"
+  },
+  "영천시": {
+    "stations": 234,
+    "chargers": 797,
+    "fast": 210,
+    "slow": 587,
+    "collected_at": "2026-09-18"
+  },
+  "상주시": {
+    "stations": 217,
+    "chargers": 596,
+    "fast": 209,
+    "slow": 387,
+    "collected_at": "2026-09-18"
+  },
+  "문경시": {
+    "stations": 134,
+    "chargers": 378,
+    "fast": 122,
+    "slow": 256,
+    "collected_at": "2026-09-18"
+  },
+  "경산시": {
+    "stations": 604,
+    "chargers": 2884,
+    "fast": 335,
+    "slow": 2549,
+    "collected_at": "2026-09-18"
+  },
+  "의성군": {
+    "stations": 89,
+    "chargers": 194,
+    "fast": 106,
+    "slow": 88,
+    "collected_at": "2026-09-18"
+  },
+  "청송군": {
+    "stations": 73,
+    "chargers": 177,
+    "fast": 81,
+    "slow": 96,
+    "collected_at": "2026-09-18"
+  },
+  "영양군": {
+    "stations": 43,
+    "chargers": 74,
+    "fast": 43,
+    "slow": 31,
+    "collected_at": "2026-09-18"
+  },
+  "영덕군": {
+    "stations": 88,
+    "chargers": 240,
+    "fast": 133,
+    "slow": 107,
+    "collected_at": "2026-09-18"
+  },
+  "청도군": {
+    "stations": 91,
+    "chargers": 210,
+    "fast": 92,
+    "slow": 118,
+    "collected_at": "2026-09-18"
+  },
+  "고령군": {
+    "stations": 82,
+    "chargers": 212,
+    "fast": 90,
+    "slow": 122,
+    "collected_at": "2026-09-18"
+  },
+  "성주군": {
+    "stations": 104,
+    "chargers": 243,
+    "fast": 130,
+    "slow": 113,
+    "collected_at": "2026-09-18"
+  },
+  "칠곡군": {
+    "stations": 250,
+    "chargers": 884,
+    "fast": 145,
+    "slow": 739,
+    "collected_at": "2026-09-18"
+  },
+  "예천군": {
+    "stations": 128,
+    "chargers": 541,
+    "fast": 85,
+    "slow": 456,
+    "collected_at": "2026-09-18"
+  },
+  "봉화군": {
+    "stations": 61,
+    "chargers": 135,
+    "fast": 100,
+    "slow": 35,
+    "collected_at": "2026-09-18"
+  },
+  "울진군": {
+    "stations": 128,
+    "chargers": 294,
+    "fast": 129,
+    "slow": 165,
+    "collected_at": "2026-09-18"
+  },
+  "울릉군": {
+    "stations": 18,
+    "chargers": 36,
+    "fast": 29,
+    "slow": 7,
+    "collected_at": "2026-09-18"
+  },
+  "창원시": {
+    "stations": 1781,
+    "chargers": 9160,
+    "fast": 783,
+    "slow": 8377,
+    "collected_at": "2026-09-18"
+  },
+  "진주시": {
+    "stations": 667,
+    "chargers": 2998,
+    "fast": 369,
+    "slow": 2629,
+    "collected_at": "2026-09-18"
+  },
+  "통영시": {
+    "stations": 298,
+    "chargers": 976,
+    "fast": 142,
+    "slow": 834,
+    "collected_at": "2026-09-18"
+  },
+  "사천시": {
+    "stations": 246,
+    "chargers": 835,
+    "fast": 161,
+    "slow": 674,
+    "collected_at": "2026-09-18"
+  },
+  "김해시": {
+    "stations": 945,
+    "chargers": 5442,
+    "fast": 375,
+    "slow": 5067,
+    "collected_at": "2026-09-18"
+  },
+  "밀양시": {
+    "stations": 234,
+    "chargers": 715,
+    "fast": 177,
+    "slow": 538,
+    "collected_at": "2026-09-18"
+  },
+  "거제시": {
+    "stations": 603,
+    "chargers": 2652,
+    "fast": 233,
+    "slow": 2419,
+    "collected_at": "2026-09-18"
+  },
+  "양산시": {
+    "stations": 649,
+    "chargers": 3962,
+    "fast": 285,
+    "slow": 3677,
+    "collected_at": "2026-09-18"
+  },
+  "의령군": {
+    "stations": 91,
+    "chargers": 164,
+    "fast": 69,
+    "slow": 95,
+    "collected_at": "2026-09-18"
+  },
+  "함안군": {
+    "stations": 147,
+    "chargers": 421,
+    "fast": 122,
+    "slow": 299,
+    "collected_at": "2026-09-18"
+  },
+  "창녕군": {
+    "stations": 157,
+    "chargers": 422,
+    "fast": 115,
+    "slow": 307,
+    "collected_at": "2026-09-18"
+  },
+  "고성군(경남)": {
+    "stations": 137,
+    "chargers": 306,
+    "fast": 109,
+    "slow": 197,
+    "collected_at": "2026-09-18"
+  },
+  "남해군": {
+    "stations": 140,
+    "chargers": 286,
+    "fast": 74,
+    "slow": 212,
+    "collected_at": "2026-09-18"
+  },
+  "하동군": {
+    "stations": 192,
+    "chargers": 358,
+    "fast": 88,
+    "slow": 270,
+    "collected_at": "2026-09-18"
+  },
+  "산청군": {
+    "stations": 276,
+    "chargers": 439,
+    "fast": 204,
+    "slow": 235,
+    "collected_at": "2026-09-18"
+  },
+  "함양군": {
+    "stations": 91,
+    "chargers": 194,
+    "fast": 70,
+    "slow": 124,
+    "collected_at": "2026-09-18"
+  },
+  "거창군": {
+    "stations": 126,
+    "chargers": 329,
+    "fast": 90,
+    "slow": 239,
+    "collected_at": "2026-09-18"
+  },
+  "합천군": {
+    "stations": 127,
+    "chargers": 262,
+    "fast": 130,
+    "slow": 132,
+    "collected_at": "2026-09-18"
+  },
+  "제주특별자치도": {
+    "stations": 3196,
+    "chargers": 8576,
+    "fast": 2196,
+    "slow": 6377,
+    "unclassified": 3,
+    "collected_at": "2026-09-18"
+  }
+}
