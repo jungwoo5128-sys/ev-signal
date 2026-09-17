@@ -182,7 +182,11 @@ export function EvSignalApp() {
             )}
           </p>
           <p>
-            휘발유 1,850원/L · 충전 320원/kWh는 가정값이며, 차량 가격은 사용자 입력값입니다. 결과는
+            휘발유 1,850원/L · 충전 320원/kWh는 가정값이며, 차량 가격은 사용자 입력값입니다.
+            {view === "result" && result.state === "done" && result.evaluation.driving.mode === "commute" && (
+              <> 주 5일 출퇴근 및 주말·기타 주행 거리는 추정값입니다.</>
+            )}{" "}
+            결과는
             참고용이며 최종 보조금은 관할 지자체에 확인하세요.
           </p>
         </div>

@@ -537,6 +537,11 @@ p {
   color: var(--text-2);
 }
 
+.distance-assumption {
+  margin: 4px 0 0;
+  font-size: 11px;
+}
+
 .field-row {
   display: grid;
   grid-template-columns: 1fr 1fr;

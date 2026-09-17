@@ -13,6 +13,7 @@ from typing import Literal
 import pandas as pd
 from pydantic import BaseModel, Field, model_validator
 
+from config import COMMUTE_DAYS_PER_WEEK, WEEKS_PER_YEAR
 from src import calc, judge, llm, loader
 
 FALLBACK_RETRY_SECONDS = 60
@@ -59,7 +60,11 @@ class Driving:
 def driving(inp: EvaluateInput) -> Driving:
     if inp.distance_mode == "commute":
         est = calc.calc_annual_km_from_commute(inp.commute_km, inp.long_trip)
-        return Driving(round(est["annual_km"]), inp.commute_km, f"출퇴근 {inp.commute_km:,}km 기준 환산")
+        note = (
+            f"출퇴근 {inp.commute_km:,}km × 주 {COMMUTE_DAYS_PER_WEEK}일 × {WEEKS_PER_YEAR}주"
+            f" + 주말·기타 {est['weekend_km_year']:,.0f}km"
+        )
+        return Driving(round(est["annual_km"]), inp.commute_km, note)
     return Driving(inp.annual_km, None, "직접 입력")
 
 
@@ -261,6 +266,7 @@ def evaluate(store: Store, inp: EvaluateInput) -> dict:
                 f"상온 {info['range_normal']}km / 저온 {info['range_cold']}km"
             ),
         },
+        "driving": {"mode": inp.distance_mode, "annual_km": ev.driving.annual_km},
         "base_date": store.base_date,
     }
 

@@ -157,6 +157,9 @@ function StepDriving({ profile, setProfile }: StepProps) {
               text={`연간 약 ${km(estimate.annual)}km로 계산됩니다 (출퇴근 ${km(estimate.commute)} + 주말·기타 ${km(estimate.weekend)})`}
             />
           </p>
+          <p className="field-help distance-assumption">
+            <Mono text="주 5일 출퇴근 · 주말·기타 주행은 장거리 빈도 기준 추정값입니다" />
+          </p>
         </div>
       )}
       <Segmented

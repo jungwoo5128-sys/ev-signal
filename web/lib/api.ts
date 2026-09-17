@@ -45,6 +45,8 @@ export interface Evaluation {
     contact: string | null;
   };
   evidence: { vehicle_cost: Row[]; running_cost: Row[]; result: Row[]; spec: string };
+  /** 판정에 쓰인 주행거리 입력 방식 */
+  driving: { mode: DistanceMode; annual_km: number };
   base_date: string;
 }
 

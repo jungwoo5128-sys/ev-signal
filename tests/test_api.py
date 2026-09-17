@@ -193,6 +193,7 @@ def test_evaluate_annual_mode_keeps_baseline(client, extra):
     assert body["cards"]["co2"]["value"] == "1.85톤"
     assert body["evidence"]["result"][0]["value"] == "3.6년"
     assert _running(body)["연간 주행거리"] == ("15,000km", "직접 입력")
+    assert body["driving"] == {"mode": "annual", "annual_km": 15000}
     assert body["cards"]["fuel_saving"]["note"].startswith("연 15,000km")
 
 
@@ -204,7 +205,9 @@ def test_evaluate_commute_mode_converts(client, commute, long_trip, expected):
     body = client.post("/evaluate", json={
         **EXAMPLE, "distance_mode": "commute", "commute_km": commute, "long_trip": long_trip,
     }).json()
-    assert _running(body)["연간 주행거리"] == (expected, f"출퇴근 {commute}km 기준 환산")
+    weekend = {"월3회이상": "7,000", "거의없음": "2,000"}[long_trip]
+    assert _running(body)["연간 주행거리"] == (expected, f"출퇴근 {commute}km × 주 5일 × 52주 + 주말·기타 {weekend}km")
+    assert body["driving"]["mode"] == "commute"
     assert body["cards"]["fuel_saving"]["note"].startswith(f"연 {expected}")
 
 
