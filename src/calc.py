@@ -72,6 +72,11 @@ def calc_co2(annual_km, current_efficiency, ev_efficiency) -> dict:
     }
 
 
+def calc_price_gap(ev_price, ice_price) -> float:
+    """전기차 − 내연기관차 가격 차이(원). 전기차가 더 싸면 0."""
+    return float(max(ev_price - ice_price, 0))
+
+
 def calc_bep(price_gap=DEFAULT_PRICE_GAP, subsidy=0, annual_saving=0) -> dict:
     """실부담(원)과 손익분기 연수. 회수 불가면 inf, 보조금이 차액보다 크면 0.0."""
     net_cost = float(price_gap - subsidy)

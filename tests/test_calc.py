@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.calc import (  # noqa: E402
     calc_bep,
+    calc_price_gap,
     calc_co2,
     calc_efficiency,
     calc_fuel_saving,
@@ -99,3 +100,22 @@ def test_bep_no_saving_is_inf():
 def test_bep_subsidy_exceeds_gap_is_zero():
     result = calc_bep(PRICE_GAP, 17_000_000, 1_408_000)
     assert result["bep_years"] == 0.0
+
+
+@pytest.mark.parametrize("ev_price, ice_price, expected", [
+    (52_000_000, 36_000_000, 16_000_000),
+    (36_000_000, 36_000_000, 0),
+    (30_000_000, 36_000_000, 0),  # 전기차가 더 싸면 0
+])
+def test_price_gap(ev_price, ice_price, expected):
+    result = calc_price_gap(ev_price, ice_price)
+    assert isinstance(result, float)
+    assert result == expected
+
+
+def test_bep_from_prices():
+    """예시 프로필: 5,200만원 / 3,600만원 → 기존 가격 차이 1,600만원과 같은 결과."""
+    price_gap = calc_price_gap(52_000_000, 36_000_000)
+    result = calc_bep(price_gap, 10_200_000, 1_609_107)
+    assert result["net_cost"] == pytest.approx(5_800_000, abs=WON_TOL)
+    assert result["bep_years"] == pytest.approx(3.6, abs=TOL)

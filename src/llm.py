@@ -81,6 +81,8 @@ def _build_user_message(grade, reasons, ctx, calc_results) -> str:
             "연간 주행거리": f"{ctx.annual_km:,}km",
             "출퇴근 왕복 거리": f"{ctx.commute_km:,}km",
             "현재 차량 연비": f"{inputs.get('current_efficiency')}km/L",
+            "관심 전기차 가격": f"{inputs.get('ev_price') or 0:,.0f}원",
+            "비교 내연기관차 가격": f"{inputs.get('ice_price') or 0:,.0f}원",
             "차량 가격 차이": f"{inputs.get('price_gap') or 0:,.0f}원",
             "예상 보유 기간": f"{ctx.hold_years}년",
             "주거지 충전기": "있음" if ctx.home_charger else "없음",

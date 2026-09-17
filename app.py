@@ -6,7 +6,6 @@ import time
 
 import streamlit as st
 
-import config
 from src import calc, judge, llm, loader
 
 st.set_page_config(page_title="전기차 신호등", layout="wide")
@@ -45,7 +44,8 @@ DEFAULTS = {
     "hold_years": 7,
     "model": None,
     "current_efficiency": 11.2,
-    "price_gap_manwon": config.DEFAULT_PRICE_GAP // 10000,
+    "ev_price_manwon": 5200,
+    "ice_price_manwon": 3600,
     "has_scrap": True,
 }
 
@@ -60,7 +60,8 @@ EXAMPLE_PROFILE = {
     "hold_years": 7,
     "model": "더 뉴 아이오닉5 2WD 롱레인지 19인치",
     "current_efficiency": 11.2,
-    "price_gap_manwon": 1600,
+    "ev_price_manwon": 5200,
+    "ice_price_manwon": 3600,
     "has_scrap": True,
 }
 
@@ -200,12 +201,19 @@ def render_input():
             format="%.1f",
             key=bind("current_efficiency"),
         )
-        ss.price_gap_manwon = st.number_input(
-            "전기차와 내연기관차의 가격 차이 (만원)",
+        ss.ev_price_manwon = st.number_input(
+            "관심 전기차 가격 (만원)",
             min_value=0,
             step=100,
-            help="관심 전기차 가격에서 비교 대상 내연기관차 가격을 뺀 금액입니다",
-            key=bind("price_gap_manwon"),
+            help="보조금 적용 전 차량 가격입니다",
+            key=bind("ev_price_manwon"),
+        )
+        ss.ice_price_manwon = st.number_input(
+            "비교 내연기관차 가격 (만원)",
+            min_value=0,
+            step=100,
+            help="전기차 대신 구매를 고려하는 내연기관차 가격입니다",
+            key=bind("ice_price_manwon"),
         )
         ss.has_scrap = st.checkbox(
             "현재 차량 폐차 또는 매도 예정", key=bind("has_scrap")
@@ -350,7 +358,9 @@ def render_result():
     fuel = calc.calc_fuel_saving(ss.annual_km, ss.current_efficiency, ev_eff)
     subsidy = calc.calc_subsidy(model_info, ss.has_scrap)
     co2 = calc.calc_co2(ss.annual_km, ss.current_efficiency, ev_eff)
-    price_gap = ss.price_gap_manwon * 10000  # 만원 → 원
+    ev_price = ss.ev_price_manwon * 10000  # 만원 → 원
+    ice_price = ss.ice_price_manwon * 10000
+    price_gap = calc.calc_price_gap(ev_price, ice_price)
     bep = calc.calc_bep(price_gap, subsidy["subsidy"] or 0, fuel["saving"])
     status = loader.get_region_status(summary_df, ss.region)
     ctx = judge.JudgeContext(
@@ -375,6 +385,8 @@ def render_result():
         "bep": bep,
         "inputs": {
             "current_efficiency": ss.current_efficiency,
+            "ev_price": ev_price,
+            "ice_price": ice_price,
             "price_gap": price_gap,
             "battery_kwh": model_info["battery_kwh"],
             "range_normal": model_info["range_normal"],
@@ -429,24 +441,28 @@ def render_result():
 
     # 5) 근거
     with st.expander("근거 자세히 보기"):
+        subsidy_amount = subsidy["subsidy"] or 0
         st.table(
             {
                 "항목": [
-                    "현재 차량 연간 유류비",
-                    "전기차 연간 충전비",
+                    "전기차 가격",
+                    "보조금",
+                    "보조금 적용 후",
+                    "비교 내연기관차 가격",
+                    "실제 추가 부담",
                     "연간 절감액",
-                    "차량 가격 차이 (사용자 입력)",
-                    "보조금 차감 후 실부담",
                     "회수 기간",
                 ],
                 "값": [
-                    won(fuel["annual_fuel_cost"]),
-                    won(fuel["annual_charge_cost"]),
-                    won(fuel["saving"]),
-                    won(price_gap),
+                    won(ev_price),
+                    f"-{subsidy_amount:,.0f}원",
+                    won(ev_price - subsidy_amount),
+                    won(ice_price),
                     format_net_cost(bep["net_cost"]),
+                    won(round(fuel["saving"], -3)),
                     format_bep(bep["bep_years"]),
                 ],
+                "비고": ["사용자 입력", "", "", "사용자 입력", "", "", ""],
             }
         )
         st.markdown(
