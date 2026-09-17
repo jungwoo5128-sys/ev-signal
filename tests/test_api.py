@@ -117,3 +117,44 @@ def test_explain_cache_retries_failure_after_window(monkeypatch):
     monkeypatch.setattr(service.time, "time", lambda: now + service.FALLBACK_RETRY_SECONDS + 1)
     service.explain(store, inp)
     assert len(calls) == 2
+
+
+# --- 챗봇 ---------------------------------------------------------------------
+
+def test_chat_passes_evidence_and_trims_history(client, monkeypatch):
+    captured = {}
+
+    def fake_answer(question, history, region, notice, rules):
+        captured.update(question=question, history=history, region=region, notice=notice, rules=rules)
+        return {"answer": "무공해차 통합누리집 공통 안내에 따르면 국비 최대 650만원입니다.", "ok": True}
+
+    monkeypatch.setattr(llm, "answer_eligibility", fake_answer)
+    history = []
+    for i in range(10):
+        history += [{"role": "user", "content": f"질문{i}"}, {"role": "assistant", "content": f"답변{i}"}]
+    res = client.post("/chat", json={"region": "성남시", "question": "국비 최대?", "history": history})
+
+    assert res.status_code == 200
+    assert res.json() == {"answer": "무공해차 통합누리집 공통 안내에 따르면 국비 최대 650만원입니다."}
+    assert captured["question"] == "국비 최대?" and captured["region"] == "성남시"
+    assert len(captured["history"]) == 12 and captured["history"][0]["content"] == "질문4"
+    assert "성남시" in captured["notice"]
+    assert captured["rules"] == loader.load_subsidy_rules() and captured["rules"]
+
+
+def test_chat_without_llm_returns_unavailable(client):
+    res = client.post("/chat", json={"region": "성남시", "question": "다자녀 혜택은?", "history": []})
+    assert res.status_code == 200
+    assert res.json() == {"answer": "일시적으로 답변할 수 없습니다."}
+
+
+def test_chat_unknown_region_404(client):
+    assert client.post("/chat", json={"region": "없는시", "question": "질문"}).status_code == 404
+
+
+@pytest.mark.parametrize("body", [
+    {"region": "성남시", "question": ""},
+    {"region": "성남시", "question": "질문", "history": [{"role": "system", "content": "x"}]},
+])
+def test_chat_invalid_input_422(client, body):
+    assert client.post("/chat", json=body).status_code == 422

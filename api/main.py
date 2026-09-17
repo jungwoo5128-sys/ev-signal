@@ -77,3 +77,8 @@ class NoticeInput(BaseModel):
 @app.post("/notice-summary")
 def notice_summary(request: Request, inp: NoticeInput):
     return {"items": service.notice_summary(store(request), inp.region, inp.has_scrap, inp.model)}
+
+
+@app.post("/chat")
+def chat(request: Request, inp: service.ChatInput):
+    return service.chat(store(request), inp)

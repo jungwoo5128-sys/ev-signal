@@ -17,6 +17,8 @@ from src import calc, judge, llm, loader
 
 FALLBACK_RETRY_SECONDS = 60
 
+CHAT_HISTORY_TURNS = 6  # 질문·답변 한 쌍을 한 턴으로 본다
+
 LongTrip = Literal["거의없음", "월1~2회", "월3회이상"]
 WorkCharger = Literal["있음", "없음", "해당없음"]
 
@@ -286,3 +288,29 @@ def notice_summary(store: Store, region: str, has_scrap: bool, model: str):
     items = llm.summarize_notice(notice, has_scrap, model)
     _notice_cache.set(key, items)
     return items
+
+
+# --- 보조금 자격 문의 챗봇 -----------------------------------------------------
+# 판정(judge)과 무관한 정보 제공. 답변 생성·안전장치는 llm.answer_eligibility()에 있다.
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class ChatInput(BaseModel):
+    region: str
+    question: str = Field(min_length=1, max_length=500)
+    history: list[ChatMessage] = []
+
+
+def chat(store: Store, inp: ChatInput) -> dict:
+    """근거 문서(공통 규정 + 지자체 공지)만으로 답한다. 실패 시에도 안내 문구를 answer로 돌려준다."""
+    if inp.region not in regions(store):
+        raise KeyError(f"'{inp.region}' 지역이 없습니다.")
+    notice = loader.get_region_status(store.summary_df, inp.region)["notice"]
+    history = [m.model_dump() for m in inp.history][-CHAT_HISTORY_TURNS * 2:]
+    result = llm.answer_eligibility(
+        inp.question, history, inp.region, notice, loader.load_subsidy_rules()
+    )
+    return {"answer": result["answer"]}

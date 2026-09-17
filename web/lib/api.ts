@@ -52,6 +52,11 @@ export interface Explanation {
   fallback: boolean;
 }
 
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -83,4 +88,6 @@ export const api = {
       model: p.model,
       has_scrap: p.has_scrap,
     }),
+  chat: (region: string, question: string, history: ChatMessage[]) =>
+    request<{ answer: string }>("/chat", { region, question, history }),
 };
