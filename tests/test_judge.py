@@ -16,7 +16,6 @@ BASE = JudgeContext(
     hold_years=7,
     home_charger=True,
     work_charger=False,
-    housing="아파트",
     long_trip="월3회이상",
     range_cold=369,
     annual_km=15000,
@@ -30,28 +29,23 @@ def test_case_a_green():
     assert reasons == []
 
 
-def test_case_b_no_charger_villa_red():
-    grade, reasons = judge(
-        replace(BASE, home_charger=False, work_charger=False, housing="빌라·오피스텔")
-    )
+def test_case_b_no_charger_red():
+    grade, reasons = judge(replace(BASE, home_charger=False, work_charger=False))
     assert grade == "RED"
     assert [s for s, _ in reasons].count("block") == 1
 
 
-@pytest.mark.parametrize("home, work, housing, grade, reasons", [
-    # 주거지 O → 근무지·주거형태는 보지 않음
-    (True, False, "빌라·오피스텔", "GREEN", []),
-    (True, True, "아파트", "GREEN", []),
+@pytest.mark.parametrize("home, work, grade, reasons", [
+    # 주거지 O → 근무지는 보지 않음
+    (True, False, "GREEN", []),
+    (True, True, "GREEN", []),
     # 주거지 X / 근무지 O
-    (False, True, "빌라·오피스텔", "YELLOW", [("warn", "주거지 충전 불가 — 근무지 충전에 의존")]),
-    # 주거지 X / 근무지 X / 아파트
-    (False, False, "아파트", "YELLOW", [("warn", "주거지·근무지 모두 충전 불가 — 공용 충전 의존")]),
-    # 주거지 X / 근무지 X / 빌라·오피스텔
-    (False, False, "빌라·오피스텔", "RED",
-     [("block", "주거지·근무지 모두 충전 불가 + 공용 충전 접근성 낮음")]),
+    (False, True, "YELLOW", [("warn", "주거지 충전 불가 — 근무지 충전에 의존")]),
+    # 주거지 X / 근무지 X → block
+    (False, False, "RED", [("block", "주거지·근무지 모두 충전 불가 — 공용 충전에 전적으로 의존")]),
 ])
-def test_charger_combinations(home, work, housing, grade, reasons):
-    ctx = replace(BASE, home_charger=home, work_charger=work, housing=housing)
+def test_charger_combinations(home, work, grade, reasons):
+    ctx = replace(BASE, home_charger=home, work_charger=work)
     assert judge(ctx) == (grade, reasons)
 
 

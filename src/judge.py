@@ -13,7 +13,6 @@ class JudgeContext:
     hold_years: int  # 3 | 5 | 7
     home_charger: bool  # 주거지 충전기 있음
     work_charger: bool  # 근무지 충전기 있음 ('해당없음'은 False)
-    housing: str  # '아파트' | '단독' | '빌라·오피스텔'
     long_trip: str  # '거의없음' | '월1~2회' | '월3회이상'
     range_cold: int
     annual_km: int
@@ -40,9 +39,7 @@ def _charger_reason(ctx: JudgeContext):
         return None
     if ctx.work_charger:
         return (WARN, "주거지 충전 불가 — 근무지 충전에 의존")
-    if ctx.housing == "빌라·오피스텔":
-        return (BLOCK, "주거지·근무지 모두 충전 불가 + 공용 충전 접근성 낮음")
-    return (WARN, "주거지·근무지 모두 충전 불가 — 공용 충전 의존")
+    return (BLOCK, "주거지·근무지 모두 충전 불가 — 공용 충전에 전적으로 의존")
 
 
 def _long_trip_reason(ctx: JudgeContext):

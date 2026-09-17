@@ -32,7 +32,6 @@ def mono(text):
     )
 
 LONG_TRIP_OPTIONS = ["거의없음", "월1~2회", "월3회이상"]
-HOUSING_OPTIONS = ["아파트", "단독", "빌라·오피스텔"]
 WORK_CHARGER_OPTIONS = ["있음", "없음", "해당없음"]
 HOLD_OPTIONS = {3: "3년", 5: "5년", 7: "7년 이상"}
 
@@ -41,7 +40,6 @@ DEFAULTS = {
     "commute_km": 40,
     "long_trip": "거의없음",
     "region": None,
-    "housing": "아파트",
     "home_charger": True,
     "work_charger": "없음",
     "hold_years": 7,
@@ -57,7 +55,6 @@ EXAMPLE_PROFILE = {
     "commute_km": 40,
     "long_trip": "월3회이상",
     "region": "성남시",
-    "housing": "아파트",
     "home_charger": True,
     "work_charger": "없음",
     "hold_years": 7,
@@ -197,7 +194,6 @@ def render_step_residence():
         placeholder="지자체를 선택하세요",
         key=bind("region"),
     )
-    ss.housing = st.selectbox("주거 형태", HOUSING_OPTIONS, key=bind("housing"))
     ss.home_charger = st.radio(
         "주거지 충전기",
         [True, False],
@@ -509,7 +505,6 @@ def render_result():
         hold_years=ss.hold_years,
         home_charger=ss.home_charger,
         work_charger=ss.work_charger == "있음",  # '해당없음'은 '없음'과 동일
-        housing=ss.housing,
         long_trip=ss.long_trip,
         range_cold=model_info["range_cold"],
         annual_km=ss.annual_km,

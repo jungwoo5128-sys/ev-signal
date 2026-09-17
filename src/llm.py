@@ -87,7 +87,6 @@ def _build_user_message(grade, reasons, ctx, calc_results) -> str:
             "예상 보유 기간": f"{ctx.hold_years}년",
             "주거지 충전기": "있음" if ctx.home_charger else "없음",
             "근무지 충전기": "있음" if ctx.work_charger else "없음",
-            "주거 형태": ctx.housing,
             "장거리 주행 빈도": ctx.long_trip,
         },
         "차량 제원": {
