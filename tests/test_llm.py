@@ -16,6 +16,7 @@ from src.judge import JudgeContext  # noqa: E402
 CTX = JudgeContext(
     bep_years=4.1187, hold_years=7, home_charger=True, work_charger=False, housing="아파트",
     long_trip="월3회이상", range_cold=369, annual_km=15000,
+    commute_km=40,
 )
 CALC = {
     "fuel": {"annual_fuel_cost": 2276785.7, "annual_charge_cost": 868571.4, "saving": 1408214.3},

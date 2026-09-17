@@ -20,6 +20,7 @@ BASE = JudgeContext(
     long_trip="월3회이상",
     range_cold=369,
     annual_km=15000,
+    commute_km=40,
 )
 
 
@@ -52,6 +53,27 @@ def test_case_b_no_charger_villa_red():
 def test_charger_combinations(home, work, housing, grade, reasons):
     ctx = replace(BASE, home_charger=home, work_charger=work, housing=housing)
     assert judge(ctx) == (grade, reasons)
+
+
+@pytest.mark.parametrize("home, work, commute, reasons", [
+    # 주거지 X / 근무지 O / 출퇴근 80km → 근무지 의존 + 출퇴근 부담
+    (False, True, 80, [
+        ("warn", "주거지 충전 불가 — 근무지 충전에 의존"),
+        ("warn", "출퇴근 왕복 80km + 주거지 충전 불가 — 공용 충전 의존도 높음"),
+    ]),
+    # 주거지 O / 출퇴근 80km → 출퇴근 규칙 미적용
+    (True, False, 80, []),
+    # 경계값: 60km부터 적용, 59km는 미적용
+    (False, True, 60, [
+        ("warn", "주거지 충전 불가 — 근무지 충전에 의존"),
+        ("warn", "출퇴근 왕복 60km + 주거지 충전 불가 — 공용 충전 의존도 높음"),
+    ]),
+    (False, True, 59, [("warn", "주거지 충전 불가 — 근무지 충전에 의존")]),
+])
+def test_commute_rule(home, work, commute, reasons):
+    grade, result = judge(replace(BASE, home_charger=home, work_charger=work, commute_km=commute))
+    assert result == reasons
+    assert grade == ("YELLOW" if reasons else "GREEN")
 
 
 def test_case_c_bep_near_hold_yellow():

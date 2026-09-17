@@ -233,7 +233,7 @@ def manwon(value):
 def format_net_cost(value):
     """표시 전용. 계산값(음수 포함)은 그대로 두고, 0 이하면 설명을 붙인다."""
     if value <= 0:
-        return "0원 (보조금이 차액보다 큼)"
+        return "0원 (보조금으로 전액 충당)"
     return won(value)
 
 
@@ -362,6 +362,7 @@ def render_result():
         long_trip=ss.long_trip,
         range_cold=model_info["range_cold"],
         annual_km=ss.annual_km,
+        commute_km=ss.commute_km,
     )
     grade, reasons = judge.judge(ctx)
     level, advice = judge.timing_advice(status)

@@ -17,6 +17,7 @@ class JudgeContext:
     long_trip: str  # '거의없음' | '월1~2회' | '월3회이상'
     range_cold: int
     annual_km: int
+    commute_km: int  # 출퇴근 왕복 거리
 
 
 def _bep_reason(ctx: JudgeContext):
@@ -56,9 +57,22 @@ def _annual_km_reason(ctx: JudgeContext):
     return None
 
 
+def _commute_reason(ctx: JudgeContext):
+    """주거지 충전이 가능하면 밤새 충전되므로 출퇴근 거리는 보지 않는다."""
+    if not ctx.home_charger and ctx.commute_km >= 60:
+        return (WARN, f"출퇴근 왕복 {ctx.commute_km}km + 주거지 충전 불가 — 공용 충전 의존도 높음")
+    return None
+
+
 def judge(ctx: JudgeContext) -> tuple[str, list[tuple[str, str]]]:
     """등급('GREEN'|'YELLOW'|'RED')과 (심각도, 설명) 사유 리스트."""
-    rules = (_bep_reason, _charger_reason, _long_trip_reason, _annual_km_reason)
+    rules = (
+        _bep_reason,
+        _charger_reason,
+        _long_trip_reason,
+        _annual_km_reason,
+        _commute_reason,
+    )
     reasons = [r for rule in rules if (r := rule(ctx)) is not None]
 
     severities = {severity for severity, _ in reasons}

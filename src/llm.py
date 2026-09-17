@@ -79,6 +79,7 @@ def _build_user_message(grade, reasons, ctx, calc_results) -> str:
         "사유": [{"심각도": s, "설명": t} for s, t in reasons] or [],
         "사용자 조건": {
             "연간 주행거리": f"{ctx.annual_km:,}km",
+            "출퇴근 왕복 거리": f"{ctx.commute_km:,}km",
             "현재 차량 연비": f"{inputs.get('current_efficiency')}km/L",
             "차량 가격 차이": f"{inputs.get('price_gap') or 0:,.0f}원",
             "예상 보유 기간": f"{ctx.hold_years}년",
