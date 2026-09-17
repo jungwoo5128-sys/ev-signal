@@ -68,3 +68,14 @@ def test_subsidy_rules_document_loaded():
 
 def test_subsidy_rules_missing_file(tmp_path):
     assert loader.load_subsidy_rules(tmp_path / "없음.md") == ""
+
+
+def test_subsidy_rules_national_surcharges_and_no_contradiction():
+    text = loader.load_subsidy_rules()
+    for fact in ("국고보조금의 20% 추가 지원", "2자녀 100만원", "3자녀 200만원", "4자녀 이상 300만원",
+                 "비율 방식(청년·취약계층)을 먼저 산정하고, 정액 방식(다자녀)을 마지막에 더함",
+                 "소상공인 확인 방법"):
+        assert fact in text
+    # 이제 자료에 있는 기준을 '자료에 없음/지자체별'로 적지 않는다
+    assert "다자녀 기준 자녀 인원" not in text
+    assert "청년 연령 기준" not in text

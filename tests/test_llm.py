@@ -398,7 +398,17 @@ def test_chat_prompt_source_label_and_negative_inference(monkeypatch):
     llm.answer_eligibility("질문", [], "성남시", CHAT_NOTICE, RULES)
     system = captured["system"]
     assert "환경부 공통 지침" not in system
-    assert "무공해차 통합누리집 공통 안내에 따르면" in system
+    assert "'<해당 섹션의 출처명>에 따르면'" in system
+    assert "섹션에 적힌 출처명을 사용하고" in system
     assert "규정 파일 상단에 적힌 출처명을 사용하세요" in system
     assert "'없다'가 아니라 '자료에 없다'입니다" in system
     assert "성남시는 출고·등록순으로 선정한다고 공지되어 있습니다" in system
+
+
+def test_chat_prompt_eligibility_example_not_about_multi_child(monkeypatch):
+    """다자녀 국비 기준은 규정 문서에 있으므로, 판단 금지 예시는 자료에 없는 소재(소상공인 확인)를 쓴다."""
+    captured = chat_client(monkeypatch, text="답변입니다.")
+    llm.answer_eligibility("질문", [], "성남시", CHAT_NOTICE, RULES)
+    system = captured["system"].split("<공통 규정>")[0]
+    assert "다자녀" not in system
+    assert "소상공인 확인 방법은 자료에 없어" in system
