@@ -10,6 +10,36 @@ from src import calc, judge, llm, loader
 
 st.set_page_config(page_title="전기차 신호등", layout="wide")
 
+# 입력 흐름 UI 색상. 판정 램프(초록/노랑/빨강)와 섞지 않는다.
+# 값은 임시 — 디자인 팔레트가 정해지면 여기만 바꾸면 된다.
+st.markdown(
+    """<style>
+    :root {
+        --accent: #d0217c;        /* 마젠타: 현재 단계, 주요 버튼 */
+        --accent-hover: #a8185f;
+        --line: #17a2b8;          /* 시안: 완료 단계, 연결선 */
+        --muted: #c5c9d0;         /* 이후 단계 */
+        --muted-text: #6b7280;
+    }
+    .st-key-nav_next button, .st-key-nav_submit button {
+        background: var(--accent); border: 1px solid var(--accent); color: #fff;
+    }
+    .st-key-nav_next button:hover, .st-key-nav_submit button:hover {
+        background: var(--accent-hover); border-color: var(--accent-hover); color: #fff;
+    }
+    .st-key-nav_next button:disabled, .st-key-nav_submit button:disabled {
+        background: var(--muted); border-color: var(--muted); color: #fff; opacity: 0.7;
+    }
+    .st-key-nav_prev button {
+        background: transparent; border: 1px solid var(--accent); color: var(--accent);
+    }
+    .st-key-nav_prev button:hover {
+        background: transparent; border-color: var(--accent-hover); color: var(--accent-hover);
+    }
+    </style>""",
+    unsafe_allow_html=True,
+)
+
 GRADE_COLORS = {"GREEN": "#2e9e5b", "YELLOW": "#e0a92b", "RED": "#d14343"}
 GRADE_LABELS = {"GREEN": "추천", "YELLOW": "조건부", "RED": "비추천"}
 GRADE_MESSAGES = {
@@ -147,19 +177,17 @@ loading.empty()
 # --- 입력 화면 ----------------------------------------------------------
 
 STEPS = ["주행", "거주", "차량·보유"]
-STEP_ACTIVE = "#2e9e5b"
-STEP_DONE = "#17a2b8"  # 시안
 
 
 def render_step_indicator(current):
     parts = []
     for i, label in enumerate(STEPS, start=1):
         if i == current:
-            bg, fg, weight = STEP_ACTIVE, "#fff", 700
+            bg, fg, weight = "var(--accent)", "#fff", 700
         elif i < current:
-            bg, fg, weight = STEP_DONE, "#fff", 400
+            bg, fg, weight = "var(--line)", "#fff", 400
         else:
-            bg, fg, weight = OFF_COLOR, "#666", 400
+            bg, fg, weight = "var(--muted)", "var(--muted-text)", 400
         parts.append(
             f"""<div style="display:flex;flex-direction:column;align-items:center;min-width:64px">
                   <div style="width:36px;height:36px;border-radius:50%;background:{bg};color:{fg};
@@ -169,7 +197,7 @@ def render_step_indicator(current):
                 </div>"""
         )
         if i < len(STEPS):
-            line = STEP_DONE if i < current else OFF_COLOR
+            line = "var(--line)" if i < current else "var(--muted)"
             parts.append(
                 f'<div style="flex:0 0 48px;height:3px;background:{line};margin-top:17px"></div>'
             )
@@ -294,12 +322,19 @@ def render_input():
     prev_col, next_col, _ = st.columns([1, 1, 4])
     with prev_col:
         if current > 1:
-            st.button("이전", on_click=go_to_step, args=(current - 1,), use_container_width=True)
+            st.button(
+                "이전",
+                key="nav_prev",
+                on_click=go_to_step,
+                args=(current - 1,),
+                use_container_width=True,
+            )
     with next_col:
         ready = step_ready(current)
         if current < len(STEPS):
             st.button(
                 "다음",
+                key="nav_next",
                 type="primary",
                 disabled=not ready,
                 on_click=go_to_step,
@@ -309,6 +344,7 @@ def render_input():
         else:
             st.button(
                 "판정 받기",
+                key="nav_submit",
                 type="primary",
                 disabled=not ready,
                 on_click=submit,
