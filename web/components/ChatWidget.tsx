@@ -201,7 +201,7 @@ export function ChatWidget({ region }: Props) {
             src="/chat_mascot.png"
             alt=""
             width={280}
-            height={200}
+            height={208}
             loading="eager"
             onError={() => setBubbleFailed(true)}
           />
