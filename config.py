@@ -1,6 +1,6 @@
 """상수 정의."""
 
-GASOLINE_PRICE = 1700  # 원/L
+GASOLINE_PRICE = 1850  # 원/L
 CHARGING_PRICE = 320  # 원/kWh
 CO2_GASOLINE = 2.31  # kgCO2/L
 CO2_ELECTRIC = 0.4594  # kgCO2/kWh

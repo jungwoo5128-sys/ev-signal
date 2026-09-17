@@ -50,9 +50,9 @@ def test_efficiency(ev_efficiency):
 
 def test_fuel_saving(ev_efficiency):
     result = calc_fuel_saving(ANNUAL_KM, CURRENT_EFFICIENCY, ev_efficiency)
-    assert result["annual_fuel_cost"] == pytest.approx(2_277_000, abs=WON_TOL)
+    assert result["annual_fuel_cost"] == pytest.approx(2_478_000, abs=WON_TOL)
     assert result["annual_charge_cost"] == pytest.approx(869_000, abs=WON_TOL)
-    assert result["saving"] == pytest.approx(1_408_000, abs=WON_TOL)
+    assert result["saving"] == pytest.approx(1_609_000, abs=WON_TOL)
 
 
 def test_subsidy_with_scrap():
@@ -77,7 +77,7 @@ def test_bep(ev_efficiency):
     subsidy = calc_subsidy(MODEL_INFO, has_scrap=True)["subsidy"]
     result = calc_bep(PRICE_GAP, subsidy, saving)
     assert result["net_cost"] == pytest.approx(5_800_000, abs=WON_TOL)
-    assert result["bep_years"] == pytest.approx(4.1, abs=TOL)
+    assert result["bep_years"] == pytest.approx(3.6, abs=TOL)
 
 
 @pytest.mark.parametrize("battery, range_normal", [
