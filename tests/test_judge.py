@@ -126,3 +126,15 @@ def test_commute_rule_skipped_when_commute_unknown():
     grade, reasons = judge(replace(BASE, home_charger=False, work_charger=True, commute_km=None))
     assert reasons == [("warn", "주거지 충전 불가 — 근무지 충전에 의존")]
     assert grade == "YELLOW"
+
+
+
+@pytest.mark.parametrize("commute, warned, text", [
+    (60.0, True, "출퇴근 왕복 60km + 주거지 충전 불가 — 공용 충전 의존도 높음"),
+    (59.9, False, None),
+    (60.5, True, "출퇴근 왕복 60.5km + 주거지 충전 불가 — 공용 충전 의존도 높음"),
+])
+def test_commute_rule_with_decimal_distance(commute, warned, text):
+    grade, reasons = judge(replace(BASE, home_charger=False, work_charger=True, commute_km=commute))
+    commute_reasons = [t for _, t in reasons if "출퇴근" in t]
+    assert commute_reasons == ([text] if warned else [])

@@ -28,7 +28,7 @@ WorkCharger = Literal["있음", "없음", "해당없음"]
 class EvaluateInput(BaseModel):
     distance_mode: DistanceMode = "annual"
     annual_km: int | None = Field(default=None, gt=0)  # distance_mode="annual"일 때 사용
-    commute_km: int | None = Field(default=None, ge=0)  # distance_mode="commute"일 때 사용
+    commute_km: float | None = Field(default=None, ge=0)  # distance_mode="commute"일 때 사용 (소수 허용)
     long_trip: LongTrip
     region: str
     home_charger: bool
@@ -53,7 +53,7 @@ class EvaluateInput(BaseModel):
 class Driving:
     """계산·판정에 쓰는 주행 정보."""
     annual_km: int
-    commute_km: int | None  # 직접 입력 방식이면 모름(None) → 출퇴근 규칙 미적용
+    commute_km: float | None  # 직접 입력 방식이면 모름(None) → 출퇴근 규칙 미적용
     source_note: str
 
 
@@ -61,10 +61,10 @@ def driving(inp: EvaluateInput) -> Driving:
     if inp.distance_mode == "commute":
         est = calc.calc_annual_km_from_commute(inp.commute_km, inp.long_trip)
         note = (
-            f"출퇴근 {inp.commute_km:,}km × 주 {COMMUTE_DAYS_PER_WEEK}일 × {WEEKS_PER_YEAR}주"
+            f"출퇴근 {calc.format_km(inp.commute_km)}km × 주 {COMMUTE_DAYS_PER_WEEK}일 × {WEEKS_PER_YEAR}주"
             f" + 주말·기타 {est['weekend_km_year']:,.0f}km"
         )
-        return Driving(round(est["annual_km"]), inp.commute_km, note)
+        return Driving(est["annual_km"], inp.commute_km, note)
     return Driving(inp.annual_km, None, "직접 입력")
 
 

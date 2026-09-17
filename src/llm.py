@@ -11,6 +11,7 @@ import anthropic
 from dotenv import load_dotenv
 
 from config import CHAT_LLM_TIMEOUT, LLM_TIMEOUT, NOTICE_LLM_TIMEOUT
+from src.calc import format_km
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
@@ -88,7 +89,7 @@ def _relevant_conditions(reasons, ctx, inputs) -> dict:
         conditions["주거지 충전기"] = "있음" if ctx.home_charger else "없음"
         conditions["근무지 충전기"] = "있음" if ctx.work_charger else "없음"
     if "출퇴근" in texts:
-        conditions["출퇴근 왕복 거리"] = f"{ctx.commute_km:,}km"
+        conditions["출퇴근 왕복 거리"] = f"{format_km(ctx.commute_km)}km"
     if "겨울철 주행거리" in texts:
         conditions["장거리 주행 빈도"] = ctx.long_trip
         conditions["겨울철 주행거리"] = f"{ctx.range_cold}km"

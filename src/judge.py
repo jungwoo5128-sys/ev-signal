@@ -3,6 +3,8 @@
 import math
 from dataclasses import dataclass
 
+from src.calc import format_km
+
 BLOCK = "block"
 WARN = "warn"
 
@@ -16,7 +18,7 @@ class JudgeContext:
     long_trip: str  # '거의없음' | '월1~2회' | '월3회이상'
     range_cold: int
     annual_km: int
-    commute_km: int | None  # 출퇴근 왕복 거리. 연간 주행거리를 직접 입력한 경우 None
+    commute_km: float | None  # 출퇴근 왕복 거리(소수 허용). 연간 주행거리를 직접 입력한 경우 None
 
 
 def _bep_reason(ctx: JudgeContext):
@@ -62,7 +64,7 @@ def _commute_reason(ctx: JudgeContext):
     if ctx.commute_km is None:
         return None
     if not ctx.home_charger and ctx.commute_km >= 60:
-        return (WARN, f"출퇴근 왕복 {ctx.commute_km}km + 주거지 충전 불가 — 공용 충전 의존도 높음")
+        return (WARN, f"출퇴근 왕복 {format_km(ctx.commute_km)}km + 주거지 충전 불가 — 공용 충전 의존도 높음")
     return None
 
 

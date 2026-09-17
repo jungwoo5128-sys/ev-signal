@@ -1,5 +1,7 @@
 """계산 함수."""
 
+import math
+
 import pandas as pd
 
 from config import (
@@ -24,10 +26,24 @@ def _require_positive(name: str, value) -> float:
     return value
 
 
+def format_km(value) -> str:
+    """거리 표시용. 정수면 소수점 없이('40'), 소수면 필요한 자리까지('15.2'), 천 단위 쉼표."""
+    value = float(value)
+    if value.is_integer():
+        return f"{int(value):,}"
+    return f"{value:,.2f}".rstrip("0").rstrip(".")
+
+
+def _round_half_up(value: float) -> int:
+    # round()는 은행가 반올림(0.5 → 짝수)이라 사용자 기대와 다를 수 있다
+    return math.floor(value + 0.5)
+
+
 def calc_annual_km_from_commute(commute_km, long_trip) -> dict:
-    """출퇴근 왕복 거리와 장거리 주행 빈도로 연간 주행거리(km)를 환산한다.
+    """출퇴근 왕복 거리(소수 허용)와 장거리 주행 빈도로 연간 주행거리(km)를 환산한다.
 
     연간 = 출퇴근 왕복 × 주 5일 × 52주 + 주말·기타 주행(장거리 빈도별)
+    annual_km은 정수(반올림)로 반환한다.
     """
     if long_trip not in WEEKEND_KM_BY_LONG_TRIP:
         raise ValueError(f"장거리 주행 빈도 값이 올바르지 않습니다: {long_trip}")
@@ -36,7 +52,7 @@ def calc_annual_km_from_commute(commute_km, long_trip) -> dict:
     return {
         "commute_km_year": commute_year,
         "weekend_km_year": weekend,
-        "annual_km": commute_year + weekend,
+        "annual_km": _round_half_up(commute_year + weekend),
     }
 
 

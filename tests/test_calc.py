@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.calc import (  # noqa: E402
     calc_annual_km_from_commute,
+    format_km,
     calc_bep,
     calc_price_gap,
     calc_co2,
@@ -130,9 +131,30 @@ def test_bep_from_prices():
 def test_annual_km_from_commute(commute_km, long_trip, commute_year, weekend, annual):
     result = calc_annual_km_from_commute(commute_km, long_trip)
     assert result == {"commute_km_year": commute_year, "weekend_km_year": weekend, "annual_km": annual}
-    assert all(isinstance(v, float) for v in result.values())
+    assert isinstance(result["commute_km_year"], float) and isinstance(result["weekend_km_year"], float)
+    assert isinstance(result["annual_km"], int)  # 연간 주행거리는 정수로 반올림
 
 
 def test_annual_km_from_commute_invalid_long_trip():
     with pytest.raises(ValueError):
         calc_annual_km_from_commute(40, "매일")
+
+
+@pytest.mark.parametrize("commute_km, long_trip, annual", [
+    (15.2, "월1~2회", 7_952),   # 15.2 × 260 = 3,951.999…(부동소수) → 반올림 3,952 + 4,000
+    (15.7, "월1~2회", 8_082),   # 4,082 + 4,000
+    (15.33, "거의없음", 5_986),  # 3,985.8 → 3,986 + 2,000
+    (15.31, "거의없음", 5_981),  # 3,980.6 → 3,981 + 2,000
+    (0.1, "거의없음", 2_026),
+])
+def test_annual_km_from_decimal_commute_is_rounded_int(commute_km, long_trip, annual):
+    result = calc_annual_km_from_commute(commute_km, long_trip)
+    assert result["annual_km"] == annual
+    assert isinstance(result["annual_km"], int)
+
+
+@pytest.mark.parametrize("value, text", [
+    (40, "40"), (40.0, "40"), (15.2, "15.2"), (15.25, "15.25"), (1234.5, "1,234.5"), (0, "0"),
+])
+def test_format_km(value, text):
+    assert format_km(value) == text

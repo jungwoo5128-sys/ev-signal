@@ -43,7 +43,9 @@ const WEEKEND_KM_BY_LONG_TRIP: Record<LongTrip, number> = {
 };
 
 export function estimateAnnualKm(commuteKm: number, longTrip: LongTrip) {
-  const commute = commuteKm * COMMUTE_DAYS_PER_YEAR;
+  // 출퇴근 거리는 소수 허용(15.2km). 서버와 같이 정수로 반올림해 표시한다.
+  // 주말·기타는 정수이므로 round(출퇴근) + 주말 = round(합계)
+  const commute = Math.round(commuteKm * COMMUTE_DAYS_PER_YEAR);
   const weekend = WEEKEND_KM_BY_LONG_TRIP[longTrip];
   return { commute, weekend, annual: commute + weekend };
 }

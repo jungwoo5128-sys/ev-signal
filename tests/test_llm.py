@@ -412,3 +412,17 @@ def test_chat_prompt_eligibility_example_not_about_multi_child(monkeypatch):
     system = captured["system"].split("<공통 규정>")[0]
     assert "다자녀" not in system
     assert "소상공인 확인 방법은 자료에 없어" in system
+
+
+
+def test_decimal_commute_condition_formatted_for_number_check(monkeypatch):
+    """출퇴근 15.2km는 '15.2km'로, 60.0km는 '60km'로 전달해야 답변의 숫자 검증과 어긋나지 않는다."""
+    from dataclasses import replace
+    import json
+    reasons = [("warn", "출퇴근 왕복 60km + 주거지 충전 불가 — 공용 충전 의존도 높음")]
+    for commute, text in ((60.0, "60km"), (15.2, "15.2km")):
+        message = llm._build_user_message("YELLOW", reasons, replace(CTX, home_charger=False, commute_km=commute), CALC)
+        assert json.loads(message)["사용자 조건 (문맥 이해용, 판정 근거 아님)"]["출퇴근 왕복 거리"] == text
+    fake_client(monkeypatch, text='{"reason": "출퇴근 왕복 60km로 공용 충전 의존도가 높습니다.", "caution": ""}')
+    result = llm.generate_reason("YELLOW", reasons, replace(CTX, home_charger=False, commute_km=60.0), CALC)
+    assert result["fallback"] is False

@@ -230,3 +230,36 @@ def test_commute_rule_only_in_commute_mode(client):
 ])
 def test_distance_mode_validation_422(client, body):
     assert client.post("/evaluate", json=body).status_code == 422
+
+
+
+# --- 출퇴근 거리 소수점 입력 -----------------------------------------------------
+
+@pytest.mark.parametrize("commute, long_trip, expected_km, note_km, weekend", [
+    (15.2, "월1~2회", "7,952km", "15.2", "4,000"),
+    (15.7, "월1~2회", "8,082km", "15.7", "4,000"),
+    (15.33, "거의없음", "5,986km", "15.33", "2,000"),
+    (40.0, "월3회이상", "17,400km", "40", "7,000"),
+])
+def test_evaluate_decimal_commute(client, commute, long_trip, expected_km, note_km, weekend):
+    res = client.post("/evaluate", json={
+        **EXAMPLE, "distance_mode": "commute", "commute_km": commute, "long_trip": long_trip,
+    })
+    assert res.status_code == 200
+    body = res.json()
+    assert _running(body)["연간 주행거리"] == (
+        expected_km, f"출퇴근 {note_km}km × 주 5일 × 52주 + 주말·기타 {weekend}km"
+    )
+    assert body["driving"]["annual_km"] == int(expected_km.replace(",", "").replace("km", ""))
+
+
+def test_decimal_commute_60_warns(client):
+    body = client.post("/evaluate", json={
+        **EXAMPLE, "distance_mode": "commute", "commute_km": 60.0, "home_charger": False, "work_charger": "있음",
+    }).json()
+    assert {"severity": "warn", "text": "출퇴근 왕복 60km + 주거지 충전 불가 — 공용 충전 의존도 높음"} in body["reasons"]
+
+
+def test_annual_km_still_integer_only(client):
+    """연간 주행거리는 정수 입력 기준 (소수는 422). 점검 결과를 고정해 둔다."""
+    assert client.post("/evaluate", json={**EXAMPLE, "annual_km": 15000.5}).status_code == 422

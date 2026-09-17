@@ -149,6 +149,8 @@ function StepDriving({ profile, setProfile }: StepProps) {
           <NumberField
             label="출퇴근 왕복 거리"
             unit="km"
+            step={0.1}
+            decimal
             value={profile.commute_km}
             onChange={(v) => setProfile({ commute_km: v })}
           />
