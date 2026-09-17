@@ -469,11 +469,15 @@ def ask_example(question):
     ss.chat_example = question
 
 
+CHAT_HEIGHT = 400
+
+
 def render_eligibility_chat(region, status):
     """보조금 자격 문의 (판정과 무관한 정보 제공).
 
-    대화 기록만 그리고, 새 질문이 있으면 답변 자리만 잡아 둔다.
-    실제 LLM 호출은 페이지 맨 끝(answer_pending_question)에서 한다.
+    화면 순서: 안내 → 예시 질문(대화 전만) → 대화 기록 → 입력창 → 고지.
+    입력창 값은 호출해야 알 수 있으므로, 예시 버튼·대화 영역은 자리만 먼저 잡고
+    입력창을 그린 뒤에 채운다. 실제 LLM 호출은 페이지 맨 끝(answer_pending_question)에서 한다.
     """
     histories = ss.setdefault("chat_history", {})
     history = histories.setdefault(region, [])  # 지자체마다 근거(공지)가 달라 기록을 분리
@@ -482,26 +486,33 @@ def render_eligibility_chat(region, status):
     with st.expander("보조금 자격 문의", expanded=bool(history)):
         with st.container(key="eligibility_chat"):
             st.caption("다자녀, 생애최초, 소상공인 등 추가 지원 자격을 물어보세요")
-            columns = st.columns(len(CHAT_EXAMPLES))
-            for i, (column, example) in enumerate(zip(columns, CHAT_EXAMPLES)):
-                with column:
-                    st.button(example, key=f"chat_example_{i}", on_click=ask_example, args=(example,))
-
-            for message in history:
-                with st.chat_message(message["role"]):
-                    st.markdown(message["content"])
-
+            examples_slot = st.empty()
+            conversation_slot = st.empty()
             question = st.chat_input("질문을 입력하세요", key="chat_input") or ss.pop("chat_example", None)
-            if question:
-                with st.chat_message("user"):
-                    st.markdown(question)
-                with st.chat_message("assistant"):
-                    slot = st.empty()
-                    slot.caption("답변을 작성하는 중...")
-                pending = (question, slot)
-
             contact = " ".join(str(v) for v in (status["담당부서"], status["연락처"]) if v) or "담당 부서"
             st.caption(f"본 답변은 참고용입니다. 최종 확인은 관할 지자체({contact})")
+
+            if not history and not question:
+                # 대화 전에만 예시 질문을 보여주고, 빈 대화 영역은 그리지 않는다
+                with examples_slot.container():
+                    columns = st.columns(len(CHAT_EXAMPLES))
+                    for i, (column, example) in enumerate(zip(columns, CHAT_EXAMPLES)):
+                        with column:
+                            st.button(example, key=f"chat_example_{i}", on_click=ask_example, args=(example,))
+                return None
+
+            examples_slot.empty()
+            with conversation_slot.container(height=CHAT_HEIGHT):
+                for message in history:
+                    with st.chat_message(message["role"]):
+                        st.markdown(message["content"])
+                if question:
+                    with st.chat_message("user"):
+                        st.markdown(question)
+                    with st.chat_message("assistant"):
+                        slot = st.empty()
+                        slot.caption("답변을 작성하는 중...")
+                    pending = (question, slot)
     return pending
 
 
