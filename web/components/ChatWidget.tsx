@@ -33,6 +33,16 @@ export function ChatWidget({ region }: Props) {
   const [draft, setDraft] = useState("");
   const [waiting, setWaiting] = useState(false);
   const [mascotFailed, setMascotFailed] = useState(false);
+  const [bubbleFailed, setBubbleFailed] = useState(false);
+  // 패널을 한 번이라도 열었으면 말풍선 버전은 더 이상 띄우지 않는다
+  const [introSeen, setIntroSeen] = useState(false);
+  // 좁은 화면에서는 CSS(@media)가 말풍선을 숨기고 작은 아이콘을 보여준다
+  const showBubble = !open && !introSeen && !bubbleFailed;
+
+  const togglePanel = () => {
+    if (!open) setIntroSeen(true);
+    setOpen(!open);
+  };
 
   // 지자체가 바뀌면 근거(공지)가 달라지므로 대화를 초기화하고, 진행 중인 답변은 버린다.
   // (렌더 중 이전 값과 비교해 상태를 조정하는 React 권장 방식)
@@ -178,19 +188,31 @@ export function ChatWidget({ region }: Props) {
 
       <button
         type="button"
-        className="chat-fab"
-        onClick={() => setOpen((v) => !v)}
+        className={`chat-fab ${showBubble ? "is-bubble" : ""}`}
+        onClick={togglePanel}
         aria-label={open ? "보조금 자격 문의 닫기" : "보조금 자격 문의 열기"}
         aria-expanded={open}
         aria-controls={panelId}
       >
+        {/* 항상 화면에 떠 있는 버튼이라 지연 로딩하지 않는다 */}
+        {showBubble && (
+          <Image
+            className="chat-fab-bubble"
+            src="/chat_mascot.png"
+            alt=""
+            width={280}
+            height={200}
+            loading="eager"
+            onError={() => setBubbleFailed(true)}
+          />
+        )}
         {mascotFailed ? (
           <span className="chat-fab-fallback" aria-hidden>
             ?
           </span>
         ) : (
-          // 항상 화면에 떠 있는 버튼이라 지연 로딩하지 않는다
           <Image
+            className="chat-fab-icon"
             src="/mascot.png"
             alt=""
             width={64}

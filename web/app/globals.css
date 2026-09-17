@@ -1213,11 +1213,36 @@ p {
   outline-offset: 3px;
 }
 
-.chat-fab img {
+.chat-fab .chat-fab-icon {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: contain; /* cover면 안테나·손 등 가장자리가 잘린다 */
+}
+
+/* 말풍선 버전 (패널을 한 번도 열지 않았을 때) — 이미지 전체가 클릭 영역 */
+.chat-fab.is-bubble {
+  width: 280px;
+  height: auto;
+  border-radius: 0;
+  overflow: visible;
+  box-shadow: none; /* 투명 배경 이미지라 박스 그림자 대신 윤곽 그림자 */
+  filter: drop-shadow(0 6px 12px rgba(42, 15, 20, 0.18));
+}
+
+.chat-fab.is-bubble:hover {
+  box-shadow: none;
+}
+
+.chat-fab .chat-fab-bubble {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.chat-fab.is-bubble .chat-fab-icon,
+.chat-fab.is-bubble .chat-fab-fallback {
+  display: none;
 }
 
 .chat-fab-fallback {
@@ -1447,6 +1472,28 @@ p {
   .chat-fab {
     right: 16px;
     bottom: 16px;
+  }
+
+  /* 좁은 화면에서는 말풍선이 본문을 가리므로 처음부터 작은 원형 아이콘만 */
+  .chat-fab.is-bubble {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    overflow: hidden;
+    filter: none;
+    box-shadow: 0 6px 18px rgba(42, 15, 20, 0.22), 0 2px 4px rgba(42, 15, 20, 0.12);
+  }
+
+  .chat-fab.is-bubble .chat-fab-bubble {
+    display: none;
+  }
+
+  .chat-fab.is-bubble .chat-fab-icon {
+    display: block;
+  }
+
+  .chat-fab.is-bubble .chat-fab-fallback {
+    display: flex;
   }
 
   .chat-panel {
