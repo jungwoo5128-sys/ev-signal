@@ -9,7 +9,7 @@ import { Mono } from "./Mono";
 const EXAMPLES = [
   "다자녀 가구는 어떤 혜택이 있나요?",
   "생애 최초 구매자 조건이 뭔가요?",
-  "우선순위로 신청하려면 뭘 준비해야 하나요?",
+  "우리 지역 충전소는 얼마나 있나요?",
 ];
 
 /** 서버도 최근 6턴만 쓰지만, 요청 크기를 줄이려고 클라이언트에서도 자른다. */
@@ -132,7 +132,7 @@ export function ChatWidget({ region }: Props) {
           {!region && (
             <p className="chat-region-hint">지자체를 선택하면 해당 지역 공고 내용까지 안내해 드립니다</p>
           )}
-          <p className="chat-guide">다자녀, 생애최초, 소상공인 등 추가 지원 자격을 물어보세요</p>
+          <p className="chat-guide">추가 지원 자격이나 우리 지역 충전 인프라를 물어보세요</p>
 
           <div className="chat-log" ref={logRef} aria-live="polite">
             {messages.length === 0 && !waiting && (
