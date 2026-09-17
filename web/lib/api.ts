@@ -88,6 +88,9 @@ export const api = {
       model: p.model,
       has_scrap: p.has_scrap,
     }),
-  chat: (region: string, question: string, history: ChatMessage[]) =>
+  contact: (region: string) =>
+    request<{ contact: string | null }>(`/contact?region=${encodeURIComponent(region)}`),
+  /** region이 null이면 공통 규정만으로 답한다. */
+  chat: (region: string | null, question: string, history: ChatMessage[]) =>
     request<{ answer: string }>("/chat", { region, question, history }),
 };

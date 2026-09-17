@@ -158,3 +158,22 @@ def test_chat_unknown_region_404(client):
 ])
 def test_chat_invalid_input_422(client, body):
     assert client.post("/chat", json=body).status_code == 422
+
+
+def test_chat_without_region_uses_common_rules_only(client, monkeypatch):
+    captured = {}
+
+    def fake_answer(question, history, region, notice, rules):
+        captured.update(region=region, notice=notice, rules=rules)
+        return {"answer": "공통 안내에 따르면 650만원입니다.", "ok": True}
+
+    monkeypatch.setattr(llm, "answer_eligibility", fake_answer)
+    for body in ({"question": "국비 최대?"}, {"region": None, "question": "국비 최대?"}, {"region": "", "question": "국비 최대?"}):
+        res = client.post("/chat", json=body)
+        assert res.status_code == 200
+        assert captured == {"region": "지자체 미선택", "notice": None, "rules": loader.load_subsidy_rules()}
+
+
+def test_contact(client):
+    assert client.get("/contact", params={"region": "성남시"}).json() == {"contact": "기후에너지과 031-729-3162"}
+    assert client.get("/contact", params={"region": "없는시"}).status_code == 404

@@ -1270,6 +1270,15 @@ p {
   background: var(--soft);
 }
 
+.chat-region-hint {
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--text-2);
+  background: var(--soft);
+  border-bottom: 1px solid var(--hairline);
+}
+
 .chat-guide {
   margin: 0;
   padding: 10px 16px;

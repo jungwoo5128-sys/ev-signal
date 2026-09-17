@@ -79,6 +79,11 @@ def notice_summary(request: Request, inp: NoticeInput):
     return {"items": service.notice_summary(store(request), inp.region, inp.has_scrap, inp.model)}
 
 
+@app.get("/contact")
+def contact(request: Request, region: str):
+    return {"contact": service.region_contact(store(request), region)}
+
+
 @app.post("/chat")
 def chat(request: Request, inp: service.ChatInput):
     return service.chat(store(request), inp)

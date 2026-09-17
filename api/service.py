@@ -298,19 +298,35 @@ class ChatMessage(BaseModel):
     content: str
 
 
+NO_REGION_LABEL = "지자체 미선택"
+
+
 class ChatInput(BaseModel):
-    region: str
+    region: str | None = None  # 없으면 공통 규정만으로 답한다
     question: str = Field(min_length=1, max_length=500)
     history: list[ChatMessage] = []
 
 
+def region_contact(store: Store, region: str) -> str | None:
+    """챗봇 고지에 쓰는 담당부서·연락처."""
+    if region not in regions(store):
+        raise KeyError(f"'{region}' 지역이 없습니다.")
+    status = loader.get_region_status(store.summary_df, region)
+    return " ".join(str(v) for v in (status["담당부서"], status["연락처"]) if v) or None
+
+
 def chat(store: Store, inp: ChatInput) -> dict:
-    """근거 문서(공통 규정 + 지자체 공지)만으로 답한다. 실패 시에도 안내 문구를 answer로 돌려준다."""
-    if inp.region not in regions(store):
-        raise KeyError(f"'{inp.region}' 지역이 없습니다.")
-    notice = loader.get_region_status(store.summary_df, inp.region)["notice"]
+    """근거 문서(공통 규정 + 지자체 공지)만으로 답한다. 실패 시에도 안내 문구를 answer로 돌려준다.
+
+    지자체를 고르지 않았으면 공지 없이 공통 규정만 근거로 쓴다.
+    """
+    if inp.region:
+        if inp.region not in regions(store):
+            raise KeyError(f"'{inp.region}' 지역이 없습니다.")
+        region = inp.region
+        notice = loader.get_region_status(store.summary_df, region)["notice"]
+    else:
+        region, notice = NO_REGION_LABEL, None
     history = [m.model_dump() for m in inp.history][-CHAT_HISTORY_TURNS * 2:]
-    result = llm.answer_eligibility(
-        inp.question, history, inp.region, notice, loader.load_subsidy_rules()
-    )
+    result = llm.answer_eligibility(inp.question, history, region, notice, loader.load_subsidy_rules())
     return {"answer": result["answer"]}

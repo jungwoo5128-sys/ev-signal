@@ -15,17 +15,19 @@ const EXAMPLES = [
 /** 서버도 최근 6턴만 쓰지만, 요청 크기를 줄이려고 클라이언트에서도 자른다. */
 const HISTORY_MESSAGES = 12;
 const UNAVAILABLE = "일시적으로 답변할 수 없습니다.";
+/** 지자체를 고르지 않았을 때 고지에 쓰는 전국 공통 문의처 */
+const COMMON_CONTACT = "한국환경공단 1661-0970";
 
 interface Props {
-  region: string;
-  contact: string | null;
+  /** 선택한 지자체. 없으면 공통 규정만으로 답한다. */
+  region: string | null;
 }
 
 /**
  * 보조금 자격 문의 챗봇 (우하단 플로팅).
  * 판정과 무관한 정보 제공이며, 답변 근거·안전장치는 서버의 answer_eligibility()가 담당한다.
  */
-export function ChatWidget({ region, contact }: Props) {
+export function ChatWidget({ region }: Props) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -52,6 +54,23 @@ export function ChatWidget({ region, contact }: Props) {
   useEffect(() => {
     conversationRef.current = conversation;
   }, [conversation]);
+
+  // 고지에 쓸 담당부서·연락처 (지자체를 고른 경우에만 조회)
+  const [contactInfo, setContactInfo] = useState<{ region: string; contact: string | null } | null>(null);
+  useEffect(() => {
+    if (!region) return;
+    let cancelled = false;
+    api
+      .contact(region)
+      .then(({ contact }) => !cancelled && setContactInfo({ region, contact }))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [region]);
+  const contact = !region
+    ? COMMON_CONTACT
+    : (contactInfo?.region === region && contactInfo.contact) || "담당 부서";
 
   // 새 메시지·로딩 표시가 생기면 맨 아래로
   useEffect(() => {
@@ -106,6 +125,9 @@ export function ChatWidget({ region, contact }: Props) {
             </button>
           </header>
 
+          {!region && (
+            <p className="chat-region-hint">지자체를 선택하면 해당 지역 공고 내용까지 안내해 드립니다</p>
+          )}
           <p className="chat-guide">다자녀, 생애최초, 소상공인 등 추가 지원 자격을 물어보세요</p>
 
           <div className="chat-log" ref={logRef} aria-live="polite">
@@ -149,7 +171,7 @@ export function ChatWidget({ region, contact }: Props) {
           </form>
 
           <p className="chat-disclaimer">
-            본 답변은 참고용입니다. 최종 확인은 관할 지자체(<Mono text={contact ?? "담당 부서"} />)
+            본 답변은 참고용입니다. 최종 확인은 관할 지자체(<Mono text={contact} />)
           </p>
         </section>
       )}

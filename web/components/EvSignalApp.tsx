@@ -25,8 +25,6 @@ export function EvSignalApp() {
   const [explanation, setExplanation] = useState<Loadable<Explanation>>({ state: "loading" });
   const [notice, setNotice] = useState<Loadable<string[]>>({ state: "loading" });
   const [regionWarning, setRegionWarning] = useState<string | null>(null);
-  // 챗봇은 판정이 끝난 지자체 기준으로만 연다 (근거가 그 지자체 공지이므로)
-  const [chat, setChat] = useState<{ region: string; contact: string | null } | null>(null);
   const requestId = useRef(0);
 
   useEffect(() => {
@@ -55,7 +53,6 @@ export function EvSignalApp() {
     }
     if (!current()) return;
     setResult({ state: "done", evaluation });
-    setChat({ region: p.region ?? "", contact: evaluation.status.contact });
 
     api
       .explain(p)
@@ -90,7 +87,6 @@ export function EvSignalApp() {
     setStep(1);
     setResult({ state: "idle" });
     setRegionWarning(null);
-    setChat(null);
   };
 
   /** 결과 화면에서 지자체만 바꿔 재판정. 모델 미지원 지역이면 기존 결과 유지. */
@@ -172,7 +168,8 @@ export function EvSignalApp() {
         )}
       </main>
 
-      {view === "result" && chat?.region && <ChatWidget region={chat.region} contact={chat.contact} />}
+      {/* 모든 화면에서 표시. 지자체를 고르기 전에는 공통 규정만으로 답하고, 고르거나 바꾸면 대화를 새로 시작한다. */}
+      <ChatWidget region={profile.region} />
 
       <footer className="site-footer">
         <div className="container">
