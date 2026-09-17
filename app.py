@@ -67,8 +67,14 @@ EXAMPLE_PROFILE = {
 
 
 @st.cache_data(show_spinner=False)
-def load():
-    path = loader.find_latest_file()
+def load(path_str, mtime, schema):
+    """엑셀 로드. 인자가 캐시 키가 된다.
+
+    @st.cache_data는 이 함수의 코드만 보고 loader.py 변경은 감지하지 못한다.
+    그래서 파일(경로·수정시각)과 loader의 컬럼 구성(schema)을 인자로 받아,
+    배포 후 컬럼이 바뀌거나 새 엑셀이 들어오면 옛 캐시를 쓰지 않게 한다.
+    """
+    path = Path(path_str)
     summary_df, model_df = loader.load_data(path)
     base_date = loader.FILE_PATTERN.search(path.name).group(1)
     return summary_df, model_df, base_date
@@ -140,7 +146,10 @@ def back_to_input():
 # 로드가 끝나기 전에는 폼·버튼을 그리지 않는다 (준비 전 클릭이 무시되는 문제 방지)
 loading = st.empty()
 with loading.container(), st.spinner("데이터를 불러오는 중..."):
-    summary_df, model_df, base_date = load()
+    data_path = loader.find_latest_file()
+    summary_df, model_df, base_date = load(
+        str(data_path), data_path.stat().st_mtime, loader.schema_signature()
+    )
 loading.empty()
 
 
@@ -605,7 +614,9 @@ def render_result():
             "<li>유가·충전요금은 가정값이며, 차량 가격 차이는 사용자 입력값입니다</li></ul>",
             unsafe_allow_html=True,
         )
-        contact = mono(f"{status['담당부서']} {status['연락처']}")
+        contact = mono(
+            " ".join(str(v) for v in (status["담당부서"], status["연락처"]) if v) or "담당 부서"
+        )
         st.markdown(
             f'<div class="evs-caution">본 결과는 참고용입니다. 최종 확인은 관할 지자체({contact}) 문의</div>',
             unsafe_allow_html=True,

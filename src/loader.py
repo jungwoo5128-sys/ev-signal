@@ -98,6 +98,17 @@ def load_data(path=None) -> tuple[pd.DataFrame, pd.DataFrame]:
     return summary, models
 
 
+def schema_signature() -> tuple:
+    """loader가 읽는 시트·컬럼 구성. 앱 캐시 키에 넣어, 구성이 바뀌면 캐시가 무효화되게 한다."""
+    return (
+        SUMMARY_SHEET,
+        tuple(SUMMARY_COLUMNS),
+        MODEL_SHEET,
+        tuple(MODEL_COLUMNS),
+        tuple(MANWON_COLUMNS.items()),
+    )
+
+
 def get_regions(summary_df: pd.DataFrame) -> list[str]:
     """지역구분 목록을 정렬해서 반환."""
     return sorted(summary_df["지역구분"].dropna().unique().tolist())
@@ -116,6 +127,13 @@ def _to_python(value):
     return value.item() if hasattr(value, "item") else value
 
 
+def _field(row: pd.Series, column: str):
+    """컬럼이 없거나(데이터·캐시 구성 불일치) 값이 비어 있으면 None."""
+    if column not in row.index:
+        return None
+    return _to_python(row[column])
+
+
 def get_model_info(model_df: pd.DataFrame, region: str, model: str) -> dict:
     """지역·모델의 배터리, 주행거리, 보조금 정보."""
     rows = model_df[(model_df["지역구분"] == region) & (model_df["모델명"] == model)]
@@ -123,16 +141,16 @@ def get_model_info(model_df: pd.DataFrame, region: str, model: str) -> dict:
         raise KeyError(f"{region}에 '{model}' 모델이 없습니다.")
     row = rows.iloc[0]
     return {
-        "battery_kwh": _to_python(row["battery_kwh"]),
-        "range_normal": _to_python(row["range_normal"]),
-        "range_cold": _to_python(row["range_cold"]),
-        "subsidy_national": _to_python(row["subsidy_national"]),
-        "subsidy_local": _to_python(row["subsidy_local"]),
-        "scrap_national": _to_python(row["scrap_national"]),
-        "scrap_local": _to_python(row["scrap_local"]),
-        "subsidy_total": _to_python(row["subsidy_total"]),
-        "subsidy_with_scrap": _to_python(row["subsidy_with_scrap"]),
-        "maker": _to_python(row["제조사"]),
+        "battery_kwh": _field(row, "battery_kwh"),
+        "range_normal": _field(row, "range_normal"),
+        "range_cold": _field(row, "range_cold"),
+        "subsidy_national": _field(row, "subsidy_national"),
+        "subsidy_local": _field(row, "subsidy_local"),
+        "scrap_national": _field(row, "scrap_national"),
+        "scrap_local": _field(row, "scrap_local"),
+        "subsidy_total": _field(row, "subsidy_total"),
+        "subsidy_with_scrap": _field(row, "subsidy_with_scrap"),
+        "maker": _field(row, "제조사"),
     }
 
 
@@ -151,13 +169,13 @@ def get_region_status(summary_df: pd.DataFrame, region: str) -> dict:
         raise KeyError(f"'{region}' 지역이 없습니다.")
     row = rows.iloc[0]
     return {
-        "접수상태": _to_python(row["접수상태"]),
-        "접수율": _to_python(row["접수율(%)"]),
-        "출고잔여": _to_python(row["출고잔여(전체)"]),
-        "공고대수": _to_python(row["공고대수(전체)"]),
-        "접수대수": _to_python(row["접수대수(전체)"]),
-        "담당부서": _to_python(row["담당부서"]),
-        "연락처": _to_python(row["연락처"]),
-        "최종신청마감": _to_python(row["최종 신청마감"]),
-        "notice": _clean_notice(row["비고"]),
+        "접수상태": _field(row, "접수상태"),
+        "접수율": _field(row, "접수율(%)"),
+        "출고잔여": _field(row, "출고잔여(전체)"),
+        "공고대수": _field(row, "공고대수(전체)"),
+        "접수대수": _field(row, "접수대수(전체)"),
+        "담당부서": _field(row, "담당부서"),
+        "연락처": _field(row, "연락처"),
+        "최종신청마감": _field(row, "최종 신청마감"),
+        "notice": _clean_notice(_field(row, "비고")),
     }
