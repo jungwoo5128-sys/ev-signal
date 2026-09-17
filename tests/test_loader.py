@@ -1,5 +1,6 @@
 """엑셀 로더 테스트 (data/의 실제 엑셀 사용)."""
 
+import json
 import sys
 from pathlib import Path
 
@@ -109,3 +110,36 @@ def test_model_prices_missing_or_invalid(tmp_path):
         encoding="utf-8",
     )
     assert list(loader.load_model_prices(partial)) == ["A"]
+
+
+def test_charger_counts_file():
+    data = loader.load_charger_counts()
+    assert data["collected_at"] == "2026-09-18"
+    assert "_meta" not in data["regions"]
+    assert data["regions"]["성남시"] == {"stations": 1843, "chargers": 10812, "fast": 841, "slow": 9971}
+    # unclassified는 근거에 쓰지 않으므로 읽지 않는다
+    assert all(set(c) == {"stations", "chargers", "fast", "slow"} for c in data["regions"].values())
+
+
+def test_charger_counts_cover_excel_regions(summary_df):
+    regions = set(loader.load_charger_counts()["regions"])
+    assert regions == set(summary_df["지역구분"]) - {"한국환경공단"}
+
+
+def test_charger_counts_missing_or_invalid(tmp_path):
+    assert loader.load_charger_counts(tmp_path / "없음.json") == {"collected_at": None, "regions": {}}
+    broken = tmp_path / "broken.json"
+    broken.write_text("{", encoding="utf-8")
+    assert loader.load_charger_counts(broken)["regions"] == {}
+    partial = tmp_path / "partial.json"
+    partial.write_text(json.dumps({
+        "_meta": {"collected_at": "2026-09-18"},
+        "A": {"stations": 1, "chargers": 2, "fast": 1, "slow": 1, "unclassified": 0},
+        "B": {"stations": "1", "chargers": 2, "fast": 1, "slow": 1},
+        "C": {"stations": 1, "chargers": 2, "fast": True, "slow": 1},
+        "D": {"stations": 1, "chargers": 2},
+    }), encoding="utf-8")
+    assert loader.load_charger_counts(partial) == {
+        "collected_at": "2026-09-18",
+        "regions": {"A": {"stations": 1, "chargers": 2, "fast": 1, "slow": 1}},
+    }

@@ -118,13 +118,14 @@ class Store:
     model_df: pd.DataFrame
     base_date: str
     model_prices: dict[str, dict] = field(default_factory=dict)
+    charger_counts: dict = field(default_factory=lambda: {"collected_at": None, "regions": {}})
 
 
 def load_store(path=None) -> Store:
     path = path or loader.find_latest_file()
     summary_df, model_df = loader.load_data(path)
     base_date = loader.FILE_PATTERN.search(path.name).group(1)
-    return Store(summary_df, model_df, base_date, loader.load_model_prices())
+    return Store(summary_df, model_df, base_date, loader.load_model_prices(), loader.load_charger_counts())
 
 
 PRICE_FIELDS = ("base_price_manwon", "trim", "tax_included", "price_basis", "source", "checked_at")
@@ -365,6 +366,24 @@ class ChatInput(BaseModel):
     history: list[ChatMessage] = []
 
 
+CHARGER_SOURCE = "한국환경공단 전기자동차 충전소 정보"
+
+
+def charger_evidence(store: Store, region: str) -> str | None:
+    """챗봇 근거로 넘길 지자체 충전 인프라 요약. 수집 데이터가 없으면 None."""
+    counts = store.charger_counts["regions"].get(region)
+    if not counts:
+        return None
+    collected_at = store.charger_counts.get("collected_at")
+    basis = f", {collected_at} 기준" if collected_at else ""
+    return (
+        f"[충전 인프라 — {region}{basis}]\n"
+        f"충전소 {counts['stations']:,}곳, 충전기 {counts['chargers']:,}대 "
+        f"(급속 {counts['fast']:,}, 완속 {counts['slow']:,})\n"
+        f"출처: {CHARGER_SOURCE}"
+    )
+
+
 def region_contact(store: Store, region: str) -> str | None:
     """챗봇 고지에 쓰는 담당부서·연락처."""
     if region not in regions(store):
@@ -374,17 +393,20 @@ def region_contact(store: Store, region: str) -> str | None:
 
 
 def chat(store: Store, inp: ChatInput) -> dict:
-    """근거 문서(공통 규정 + 지자체 공지)만으로 답한다. 실패 시에도 안내 문구를 answer로 돌려준다.
+    """근거 문서(공통 규정 + 지자체 공지 + 충전 인프라)만으로 답한다. 실패 시에도 안내 문구를 answer로 돌려준다.
 
-    지자체를 고르지 않았으면 공지 없이 공통 규정만 근거로 쓴다.
+    지자체를 고르지 않았으면 공지·충전 인프라 없이 공통 규정만 근거로 쓴다.
     """
     if inp.region:
         if inp.region not in regions(store):
             raise KeyError(f"'{inp.region}' 지역이 없습니다.")
         region = inp.region
         notice = loader.get_region_status(store.summary_df, region)["notice"]
+        chargers = charger_evidence(store, region) or llm.CHARGERS_MISSING
     else:
-        region, notice = NO_REGION_LABEL, None
+        region, notice, chargers = NO_REGION_LABEL, None, None
     history = [m.model_dump() for m in inp.history][-CHAT_HISTORY_TURNS * 2:]
-    result = llm.answer_eligibility(inp.question, history, region, notice, loader.load_subsidy_rules())
+    result = llm.answer_eligibility(
+        inp.question, history, region, notice, loader.load_subsidy_rules(), chargers=chargers
+    )
     return {"answer": result["answer"]}

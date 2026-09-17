@@ -10,6 +10,7 @@ import pandas as pd
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 SUBSIDY_RULES_PATH = DATA_DIR / "subsidy_rules.md"
 MODEL_PRICES_PATH = DATA_DIR / "model_prices.json"
+CHARGER_COUNTS_PATH = DATA_DIR / "charger_counts.json"
 
 logger = logging.getLogger(__name__)
 FILE_PATTERN = re.compile(r"무공해차_보조금현황_2026_(\d{4}-\d{2}-\d{2})\.xlsx$")
@@ -124,6 +125,42 @@ def load_model_prices(path: Path = MODEL_PRICES_PATH) -> dict[str, dict]:
         else:
             logger.warning("model_prices.json: '%s' 가격 값이 올바르지 않아 제외", model)
     return prices
+
+
+CHARGER_COUNT_FIELDS = ("stations", "chargers", "fast", "slow")
+
+
+def load_charger_counts(path: Path = CHARGER_COUNTS_PATH) -> dict:
+    """지자체별 충전소·충전기 개수 (scripts/collect_chargers.py 수집 결과). 챗봇 근거로만 쓴다.
+
+    반환: {"collected_at": str | None, "regions": {지역구분: {stations, chargers, fast, slow}}}
+    _meta는 지역 목록에서 빼고, unclassified 같은 다른 필드는 버린다.
+    파일이 없거나 형식이 잘못되면 빈 regions, 개수가 음이 아닌 정수가 아닌 지역은 제외한다.
+    """
+    empty = {"collected_at": None, "regions": {}}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return empty
+    except json.JSONDecodeError as e:
+        logger.warning("charger_counts.json 형식 오류: %s", e)
+        return empty
+    if not isinstance(raw, dict):
+        return empty
+
+    meta = raw.get("_meta") if isinstance(raw.get("_meta"), dict) else {}
+    regions = {}
+    for region, info in raw.items():
+        if region == "_meta":
+            continue
+        counts = {k: info.get(k) for k in CHARGER_COUNT_FIELDS} if isinstance(info, dict) else {}
+        if len(counts) == len(CHARGER_COUNT_FIELDS) and all(
+            isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in counts.values()
+        ):
+            regions[region] = counts
+        else:
+            logger.warning("charger_counts.json: '%s' 개수 값이 올바르지 않아 제외", region)
+    return {"collected_at": meta.get("collected_at"), "regions": regions}
 
 
 def load_subsidy_rules(path: Path = SUBSIDY_RULES_PATH) -> str:

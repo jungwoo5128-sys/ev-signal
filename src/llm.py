@@ -316,9 +316,9 @@ def summarize_notice(notice, has_scrap: bool, model: str):
 # 부정 추론 금지 규칙은 틀린 예시 문장을 인용하지 않고 서술로만 금지한다.
 # 틀린 문장을 (X) 예시로 넣었을 때 모델이 그대로 따라 쓰는 경우가 7회 중 3회 있었다.
 CHAT_SYSTEM_PROMPT = """당신은 전기차 보조금 자격 정보를 안내합니다.
-아래 '공통 규정'과 '지자체 공지'에 있는 내용만으로 답하세요.
+아래 '공통 규정', '지자체 공지', '충전 인프라'에 있는 내용만으로 답하세요.
 
-- 두 근거에 없는 금액, 비율, 기준을 만들어내지 마세요
+- 근거에 없는 금액, 비율, 기준, 개수를 만들어내지 마세요
 - 근거에 없는 질문에는 '제공된 자료에 해당 내용이 없습니다.
   관할 지자체에 확인이 필요합니다'라고 답하세요
 - 지자체마다 기준이 다른 사항은 그렇다고 명시하세요
@@ -348,6 +348,14 @@ CHAT_SYSTEM_PROMPT = """당신은 전기차 보조금 자격 정보를 안내합
   → (O) '{region}는 출고·등록순으로 선정한다고 공지되어 있습니다.
          우선순위 적용 여부는 자료에 없어 지자체 확인이 필요합니다.'
   "~가 아닌 ~입니다", "~는 요구하지 않습니다" 같은 부정 단정은 근거에 그렇게 적혀 있을 때만 쓰세요.
+- 충전 인프라 정보가 제공된 경우, 해당 지역의 충전소·충전기 수를 답할 수 있습니다.
+  답변 시 기준 시각을 함께 밝히세요. (예: 충전 인프라에 적힌 'YYYY-MM-DD 기준')
+  단, 제공되는 것은 지자체 전체의 개수입니다.
+  특정 위치 근처나 주거지 인근 충전소는 알 수 없으므로,
+  그런 질문에는 무공해차 통합누리집 충전소 찾기에서 확인하도록 안내하세요.
+- 충전 인프라 정보가 '(지자체 미선택)'이면 충전소·충전기 수를 답하지 말고,
+  지자체를 선택하면 해당 지역의 충전소 현황을 안내할 수 있다고 답하세요.
+  지자체 선택 메뉴가 화면 어디에 있는지는 알 수 없으므로 위치를 말하지 마세요.
 
 <공통 규정>
 {rules}
@@ -355,7 +363,11 @@ CHAT_SYSTEM_PROMPT = """당신은 전기차 보조금 자격 정보를 안내합
 
 <지자체 공지 지자체="{region}">
 {notice}
-</지자체 공지>"""
+</지자체 공지>
+
+<충전 인프라 지자체="{region}">
+{chargers}
+</충전 인프라>"""
 
 CHAT_UNAVAILABLE = "일시적으로 답변할 수 없습니다."
 CHAT_NUMBER_REPLACEMENT = "정확한 금액은 관할 지자체에 확인해 주세요."
@@ -378,10 +390,17 @@ def _replace_unsupported_sentences(answer: str, allowed: set[str]) -> str:
     return " ".join(result)
 
 
-def answer_eligibility(question: str, history: list[dict], region: str, notice, rules: str) -> dict:
+CHARGERS_NO_REGION = "(지자체 미선택)"
+CHARGERS_MISSING = "(충전 인프라 정보 없음)"
+
+
+def answer_eligibility(
+    question: str, history: list[dict], region: str, notice, rules: str, chargers: str | None = None
+) -> dict:
     """보조금 자격 질문에 근거 문서만으로 답한다.
 
     history: [{"role": "user"|"assistant", "content": str}, ...] (이번 질문 제외)
+    chargers: 선택 지자체의 충전 인프라 요약(데이터가 없으면 CHARGERS_MISSING). 지자체 미선택이면 None.
     반환: {"answer": str, "ok": bool}
     """
     question = (question or "").strip()
@@ -393,7 +412,10 @@ def answer_eligibility(question: str, history: list[dict], region: str, notice, 
         return {"answer": CHAT_UNAVAILABLE, "ok": False}
 
     notice_text = str(notice).strip() if notice else "(공지 원문 없음)"
-    system = CHAT_SYSTEM_PROMPT.format(rules=rules or "(내용 없음)", notice=notice_text, region=region)
+    chargers_text = chargers.strip() if chargers else CHARGERS_NO_REGION
+    system = CHAT_SYSTEM_PROMPT.format(
+        rules=rules or "(내용 없음)", notice=notice_text, region=region, chargers=chargers_text
+    )
     recent = [m for m in history if m.get("role") in ("user", "assistant") and m.get("content")]
     messages = recent[-CHAT_MAX_TURNS * 2:] + [{"role": "user", "content": question}]
     while messages and messages[0]["role"] != "user":  # 첫 메시지는 user여야 한다
@@ -407,9 +429,12 @@ def answer_eligibility(question: str, history: list[dict], region: str, notice, 
         _log_failure("챗봇 응답 불가", e, timeout=CHAT_LLM_TIMEOUT)
         return {"answer": CHAT_UNAVAILABLE, "ok": False}
 
-    # 허용 숫자: 근거 문서(규정·공지) + 사용자가 직접 말한 숫자(이번 질문과 전달한 최근 6턴 기록).
+    # 허용 숫자: 근거 문서(규정·공지·충전 인프라) + 사용자가 직접 말한 숫자(이번 질문과 전달한 최근 6턴 기록).
     # 사용자가 준 숫자를 되짚는 것은 정상이다 ("자녀 3명이면?" → "3명").
-    allowed = _digit_groups(rules or "") | _digit_groups(notice_text) | _digit_groups(region or "")
+    allowed = (
+        _digit_groups(rules or "") | _digit_groups(notice_text) | _digit_groups(region or "")
+        | _digit_groups(chargers_text)
+    )
     for message in messages:
         allowed |= _digit_groups(message["content"])
     return {"answer": _replace_unsupported_sentences(answer, allowed), "ok": True}

@@ -426,3 +426,28 @@ def test_decimal_commute_condition_formatted_for_number_check(monkeypatch):
     fake_client(monkeypatch, text='{"reason": "출퇴근 왕복 60km로 공용 충전 의존도가 높습니다.", "caution": ""}')
     result = llm.generate_reason("YELLOW", reasons, replace(CTX, home_charger=False, commute_km=60.0), CALC)
     assert result["fallback"] is False
+
+
+CHARGERS = (
+    "[충전 인프라 — 성남시, 2026-09-18 기준]\n"
+    "충전소 1,843곳, 충전기 10,812대 (급속 841, 완속 9,971)\n"
+    "출처: 한국환경공단 전기자동차 충전소 정보"
+)
+
+
+def test_chat_charger_evidence_in_prompt_and_numbers_allowed(monkeypatch):
+    captured = chat_client(
+        monkeypatch,
+        text="2026-09-18 기준 성남시에는 충전소 1,843곳, 충전기 10,812대가 있습니다. 이 중 급속은 841대입니다.",
+    )
+    result = llm.answer_eligibility("충전소가 얼마나 있나요?", [], "성남시", CHAT_NOTICE, RULES, chargers=CHARGERS)
+    assert result["answer"] == "2026-09-18 기준 성남시에는 충전소 1,843곳, 충전기 10,812대가 있습니다. 이 중 급속은 841대입니다."
+    assert CHARGERS in captured["system"]
+    assert "무공해차 통합누리집 충전소 찾기" in captured["system"]
+
+
+def test_chat_charger_numbers_not_allowed_without_evidence(monkeypatch):
+    captured = chat_client(monkeypatch, text="충전소는 1,843곳입니다.")
+    result = llm.answer_eligibility("충전소가 얼마나 있나요?", [], "지자체 미선택", None, RULES)
+    assert result["answer"] == llm.CHAT_NUMBER_REPLACEMENT
+    assert "<충전 인프라 지자체=\"지자체 미선택\">\n(지자체 미선택)\n</충전 인프라>" in captured["system"]

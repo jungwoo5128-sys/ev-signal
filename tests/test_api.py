@@ -124,8 +124,8 @@ def test_explain_cache_retries_failure_after_window(monkeypatch):
 def test_chat_passes_evidence_and_trims_history(client, monkeypatch):
     captured = {}
 
-    def fake_answer(question, history, region, notice, rules):
-        captured.update(question=question, history=history, region=region, notice=notice, rules=rules)
+    def fake_answer(question, history, region, notice, rules, chargers=None):
+        captured.update(question=question, history=history, region=region, notice=notice, rules=rules, chargers=chargers)
         return {"answer": "무공해차 통합누리집 공통 안내에 따르면 국비 최대 650만원입니다.", "ok": True}
 
     monkeypatch.setattr(llm, "answer_eligibility", fake_answer)
@@ -140,6 +140,7 @@ def test_chat_passes_evidence_and_trims_history(client, monkeypatch):
     assert len(captured["history"]) == 12 and captured["history"][0]["content"] == "질문4"
     assert "성남시" in captured["notice"]
     assert captured["rules"] == loader.load_subsidy_rules() and captured["rules"]
+    assert captured["chargers"].startswith("[충전 인프라 — 성남시, 2026-09-18 기준]")
 
 
 def test_chat_without_llm_returns_unavailable(client):
@@ -163,15 +164,17 @@ def test_chat_invalid_input_422(client, body):
 def test_chat_without_region_uses_common_rules_only(client, monkeypatch):
     captured = {}
 
-    def fake_answer(question, history, region, notice, rules):
-        captured.update(region=region, notice=notice, rules=rules)
+    def fake_answer(question, history, region, notice, rules, chargers=None):
+        captured.update(region=region, notice=notice, rules=rules, chargers=chargers)
         return {"answer": "공통 안내에 따르면 650만원입니다.", "ok": True}
 
     monkeypatch.setattr(llm, "answer_eligibility", fake_answer)
     for body in ({"question": "국비 최대?"}, {"region": None, "question": "국비 최대?"}, {"region": "", "question": "국비 최대?"}):
         res = client.post("/chat", json=body)
         assert res.status_code == 200
-        assert captured == {"region": "지자체 미선택", "notice": None, "rules": loader.load_subsidy_rules()}
+        assert captured == {
+            "region": "지자체 미선택", "notice": None, "rules": loader.load_subsidy_rules(), "chargers": None,
+        }
 
 
 def test_contact(client):
@@ -289,3 +292,31 @@ def test_model_prices_endpoint(client):
 )
 def test_bep_note(bep, hold, ev, ice, expected):
     assert service.bep_note(bep, hold, ev, ice) == expected
+
+
+def test_charger_evidence_format():
+    store = service.Store(
+        None, None, "2026-09-01",
+        charger_counts={"collected_at": "2026-09-18", "regions": {
+            "성남시": {"stations": 1843, "chargers": 10812, "fast": 841, "slow": 9971},
+        }},
+    )
+    assert service.charger_evidence(store, "성남시") == (
+        "[충전 인프라 — 성남시, 2026-09-18 기준]\n"
+        "충전소 1,843곳, 충전기 10,812대 (급속 841, 완속 9,971)\n"
+        "출처: 한국환경공단 전기자동차 충전소 정보"
+    )
+    assert service.charger_evidence(store, "의령군") is None
+
+
+def test_chat_region_without_charger_data(client, monkeypatch):
+    captured = {}
+
+    def fake_answer(question, history, region, notice, rules, chargers=None):
+        captured["chargers"] = chargers
+        return {"answer": "답변", "ok": True}
+
+    monkeypatch.setattr(llm, "answer_eligibility", fake_answer)
+    monkeypatch.setitem(client.app.state.store.charger_counts, "regions", {})
+    client.post("/chat", json={"region": "성남시", "question": "충전소는?"})
+    assert captured["chargers"] == llm.CHARGERS_MISSING
