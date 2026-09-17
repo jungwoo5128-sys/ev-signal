@@ -1,30 +1,63 @@
 # 🚦 전기차 신호등
 
-내 주행·거주·보유 조건으로 전기차 전환 여부를 초록·노랑·빨강 신호로 판정하는 Streamlit 웹앱입니다.
+내 주행·거주·보유 조건으로 전기차 전환 여부를 초록·노랑·빨강 신호로 판정하는 웹앱입니다.
 공공데이터(무공해차 보조금 현황)로 지자체·모델별 보조금과 연료비 절감, 회수 기간, CO2 감축량을 계산합니다.
 등급과 별개로 지자체의 보조금 접수 현황을 함께 보여줘, "조건은 좋지만 지금은 보조금이 소진된" 상황까지 알려줍니다.
 
+- **백엔드**: FastAPI (Python 3.13) — 데이터 로드, 계산, 판정, LLM 설명
+- **프론트엔드**: Next.js (Node.js 24) — 화면
+
 ## 실행 방법
 
-Python 3.14 기준입니다.
+서버 두 개를 각각 띄웁니다. 브라우저는 프론트엔드(`localhost:3000`)만 열면 되고,
+프론트엔드가 `/api/*` 요청을 백엔드로 전달합니다.
+
+### 1. 백엔드 (프로젝트 루트)
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-cp .env.example .env   # ANTHROPIC_API_KEY 입력 (없어도 앱은 동작, 판정 근거만 규칙 사유로 표시)
-streamlit run app.py
+cp .env.example .env             # ANTHROPIC_API_KEY 입력 (없어도 동작, 판정 근거만 규칙 사유로 표시)
+uvicorn api.main:app --reload --port 8000
 ```
 
 `data/` 폴더에 `무공해차_보조금현황_2026_YYYY-MM-DD.xlsx` 형식의 엑셀이 있어야 합니다.
 여러 개가 있으면 파일명 날짜가 가장 최신인 파일을 사용합니다.
 
-테스트:
+### 2. 프론트엔드 (`web/`)
 
 ```bash
-pytest
+cd web
+npm install
+npm run dev                      # http://localhost:3000
 ```
+
+백엔드 주소가 `http://localhost:8000`이 아니면 `API_URL` 환경변수로 지정합니다
+(예: `API_URL=https://api.example.com npm run build`). 빌드·실행 시점에 읽힙니다.
+
+### 테스트
+
+```bash
+pytest                           # 백엔드 (루트)
+cd web && npm run lint && npx tsc --noEmit   # 프론트엔드
+```
+
+## API
+
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| GET | `/meta` | 데이터 기준일 |
+| GET | `/regions` | 지자체 목록 |
+| GET | `/models?region=` | 지자체의 지원 모델 (배터리·주행거리 정보가 있는 모델만) |
+| POST | `/evaluate` | 등급·사유·카드·근거 표시값 |
+| POST | `/explain` | LLM 판정 설명 (최대 5초, 실패 시 폴백) |
+| POST | `/notice-summary` | 지자체 공지 요약 (최대 12초, 실패 시 `items: null`) |
+
+`/explain`은 클라이언트가 보낸 등급을 쓰지 않고 입력값으로 판정을 서버에서 다시 계산합니다.
+`/evaluate`는 화면에 그대로 쓸 표시 문자열을 함께 돌려줍니다. LLM 숫자 검증이 이 포맷을 기준으로 하므로,
+프론트엔드에서 숫자를 다시 포맷하지 않습니다.
 
 ## 데이터 출처
 
@@ -57,18 +90,27 @@ pytest
   - 결론 문구(headline)는 등급별 고정 문구를 코드에서 사용
   - 규칙 사유가 없으면 주의 문구(caution)를 버림
   - 입력으로 전달하지 않은 숫자가 문장에 섞이면 폐기
-- **LLM이 없어도 동작합니다.** API 키 없음·잘못된 키·네트워크 오류·타임아웃(5초)·응답 형식 오류 시
-  규칙 사유 목록을 그대로 보여주는 폴백 화면으로 전환됩니다.
+- **LLM이 없어도 동작합니다.** API 키 없음·잘못된 키·네트워크 오류·타임아웃·응답 형식 오류 시
+  규칙 사유 목록을 그대로 보여주는 폴백으로 전환됩니다.
+- **느린 LLM 호출이 판정 표시를 막지 않습니다.** 프론트엔드는 `/evaluate` 결과를 먼저 그리고,
+  설명과 공지 요약은 따로 요청해 도착하는 대로 채웁니다.
 - **접수 현황은 등급에 반영하지 않습니다.** 보조금 접수율·마감 여부는 "결정 시점 권고"로 따로 표시합니다.
 
 ## 구조
 
 ```
-app.py            Streamlit 화면 (입력 → 결과, 결과 화면에서 지자체 변경)
-config.py         가정값 상수
-src/loader.py     엑셀 로드·파싱
-src/calc.py       전비, 연료비 절감, 보조금, CO2, 회수 기간 계산
-src/judge.py      등급 판정 규칙, 결정 시점 권고
-src/llm.py        판정 근거 문장 생성 (Claude Haiku 4.5) 및 폴백
-tests/            계산·판정·LLM 제어 테스트
+config.py              가정값 상수
+src/loader.py          엑셀 로드·파싱
+src/calc.py            전비, 연료비 절감, 보조금, CO2, 회수 기간 계산
+src/judge.py           등급 판정 규칙, 결정 시점 권고
+src/llm.py             판정 근거 문장·공지 요약 생성 (Claude Haiku 4.5) 및 폴백
+api/main.py            FastAPI 엔드포인트
+api/service.py         계산 조합, 표시 포맷, LLM 결과 캐시
+tests/                 계산·판정·LLM 제어·API 테스트
+
+web/app/               Next.js 페이지, globals.css (디자인 토큰·스타일 전체)
+web/components/        입력 화면, 결과 화면, 입력 필드
+web/lib/               API 호출·타입, 입력 기본값·선택지
 ```
+
+디자인을 바꿀 때는 `web/app/globals.css` 맨 위 `:root` 토큰(색·폰트·둥글기)부터 조절하세요.
