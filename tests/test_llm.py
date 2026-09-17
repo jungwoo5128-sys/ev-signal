@@ -370,3 +370,31 @@ def test_chat_without_notice_or_key(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setattr(llm, "st", SimpleNamespace(secrets={}))
     assert llm.answer_eligibility("질문", [], "성남시", CHAT_NOTICE, RULES)["ok"] is False
+
+
+def test_chat_allows_numbers_from_question(monkeypatch):
+    chat_client(monkeypatch, text="자녀가 3명인 다자녀 가구에 대한 혜택은 제공된 자료에 없습니다. 관할 지자체에 확인이 필요합니다.")
+    result = llm.answer_eligibility("자녀가 3명인데 혜택이 있나요?", [], "성남시", CHAT_NOTICE, RULES)
+    assert result["answer"].startswith("자녀가 3명인 다자녀 가구")
+
+
+def test_chat_allows_numbers_from_recent_history(monkeypatch):
+    chat_client(monkeypatch, text="앞서 말씀하신 4명 기준으로도 자료에 해당 내용이 없습니다.")
+    history = [{"role": "user", "content": "자녀가 4명입니다"}, {"role": "assistant", "content": "확인이 필요합니다."}]
+    result = llm.answer_eligibility("그럼 어떻게 하나요?", history, "성남시", CHAT_NOTICE, RULES)
+    assert "4명" in result["answer"]
+
+
+def test_chat_numbers_older_than_six_turns_not_allowed(monkeypatch):
+    chat_client(monkeypatch, text="자녀 7명 기준 혜택은 자료에 없습니다.")
+    history = [{"role": "user", "content": "자녀가 7명입니다"}, {"role": "assistant", "content": "확인이 필요합니다."}]
+    for i in range(6):
+        history += [{"role": "user", "content": "질문"}, {"role": "assistant", "content": "답변"}]
+    result = llm.answer_eligibility("다시 알려주세요", history, "성남시", CHAT_NOTICE, RULES)
+    assert result["answer"] == "정확한 금액은 관할 지자체에 확인해 주세요."
+
+
+def test_chat_question_number_does_not_allow_other_amounts(monkeypatch):
+    chat_client(monkeypatch, text="자녀가 3명이면 다자녀 가구입니다. 다자녀 가구는 100만원을 추가로 받습니다.")
+    result = llm.answer_eligibility("자녀가 3명인데 혜택이 있나요?", [], "성남시", CHAT_NOTICE, RULES)
+    assert result["answer"] == "자녀가 3명이면 다자녀 가구입니다. 정확한 금액은 관할 지자체에 확인해 주세요."

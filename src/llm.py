@@ -390,5 +390,9 @@ def answer_eligibility(question: str, history: list[dict], region: str, notice, 
         _log_failure("챗봇 응답 불가", e, timeout=CHAT_LLM_TIMEOUT)
         return {"answer": CHAT_UNAVAILABLE, "ok": False}
 
+    # 허용 숫자: 근거 문서(규정·공지) + 사용자가 직접 말한 숫자(이번 질문과 전달한 최근 6턴 기록).
+    # 사용자가 준 숫자를 되짚는 것은 정상이다 ("자녀 3명이면?" → "3명").
     allowed = _digit_groups(rules or "") | _digit_groups(notice_text) | _digit_groups(region or "")
+    for message in messages:
+        allowed |= _digit_groups(message["content"])
     return {"answer": _replace_unsupported_sentences(answer, allowed), "ok": True}
