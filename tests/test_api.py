@@ -177,3 +177,53 @@ def test_chat_without_region_uses_common_rules_only(client, monkeypatch):
 def test_contact(client):
     assert client.get("/contact", params={"region": "성남시"}).json() == {"contact": "기후에너지과 031-729-3162"}
     assert client.get("/contact", params={"region": "없는시"}).status_code == 404
+
+
+# --- 주행거리 입력 방식 ------------------------------------------------------
+
+def _running(body):
+    return {row["label"]: (row["value"], row["note"]) for row in body["evidence"]["running_cost"]}
+
+
+@pytest.mark.parametrize("extra", [{}, {"distance_mode": "annual"}])
+def test_evaluate_annual_mode_keeps_baseline(client, extra):
+    body = client.post("/evaluate", json={**EXAMPLE, **extra}).json()
+    assert body["cards"]["fuel_saving"]["value"] == "1,609,000원"
+    assert body["cards"]["subsidy"]["value"] == "10,200,000원"
+    assert body["cards"]["co2"]["value"] == "1.85톤"
+    assert body["evidence"]["result"][0]["value"] == "3.6년"
+    assert _running(body)["연간 주행거리"] == ("15,000km", "직접 입력")
+    assert body["cards"]["fuel_saving"]["note"].startswith("연 15,000km")
+
+
+@pytest.mark.parametrize("commute, long_trip, expected", [
+    (40, "월3회이상", "17,400km"),
+    (30, "거의없음", "9,800km"),
+])
+def test_evaluate_commute_mode_converts(client, commute, long_trip, expected):
+    body = client.post("/evaluate", json={
+        **EXAMPLE, "distance_mode": "commute", "commute_km": commute, "long_trip": long_trip,
+    }).json()
+    assert _running(body)["연간 주행거리"] == (expected, f"출퇴근 {commute}km 기준 환산")
+    assert body["cards"]["fuel_saving"]["note"].startswith(f"연 {expected}")
+
+
+def test_commute_rule_only_in_commute_mode(client):
+    commute_warn = {"severity": "warn", "text": "출퇴근 왕복 70km + 주거지 충전 불가 — 공용 충전 의존도 높음"}
+    base = {**EXAMPLE, "home_charger": False, "work_charger": "있음", "commute_km": 70}
+
+    annual = client.post("/evaluate", json={**base, "distance_mode": "annual"}).json()
+    assert commute_warn not in annual["reasons"]
+    assert not any("출퇴근" in r["text"] for r in annual["reasons"])
+
+    commute = client.post("/evaluate", json={**base, "distance_mode": "commute"}).json()
+    assert commute_warn in commute["reasons"]
+
+
+@pytest.mark.parametrize("body", [
+    {**EXAMPLE, "distance_mode": "annual", "annual_km": None},
+    {**{k: v for k, v in EXAMPLE.items() if k != "commute_km"}, "distance_mode": "commute"},
+    {**EXAMPLE, "distance_mode": "weekly"},
+])
+def test_distance_mode_validation_422(client, body):
+    assert client.post("/evaluate", json=body).status_code == 422

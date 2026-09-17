@@ -2,8 +2,11 @@ export type Grade = "GREEN" | "YELLOW" | "RED";
 export type LongTrip = "거의없음" | "월1~2회" | "월3회이상";
 export type WorkCharger = "있음" | "없음" | "해당없음";
 export type HoldYears = 3 | 5 | 7;
+/** annual: 연간 주행거리 직접 입력 / commute: 출퇴근 거리로 환산 */
+export type DistanceMode = "annual" | "commute";
 
 export interface Profile {
+  distance_mode: DistanceMode;
   annual_km: number;
   commute_km: number;
   long_trip: LongTrip;

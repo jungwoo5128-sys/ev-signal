@@ -4,13 +4,16 @@ import { useEffect, useState } from "react";
 
 import { api, type Profile } from "@/lib/api";
 import {
+  DISTANCE_MODE_OPTIONS,
   HOLD_OPTIONS,
   LONG_TRIP_OPTIONS,
   STEPS,
   WORK_CHARGER_OPTIONS,
+  estimateAnnualKm,
   stepReady,
 } from "@/lib/profile";
 import { NumberField, Segmented, SelectField, Toggle } from "./Fields";
+import { Mono } from "./Mono";
 
 interface Props {
   profile: Profile;
@@ -123,21 +126,39 @@ function Stepper({ current }: { current: number }) {
 type StepProps = { profile: Profile; setProfile: (u: Partial<Profile>) => void };
 
 function StepDriving({ profile, setProfile }: StepProps) {
+  const estimate = estimateAnnualKm(profile.commute_km, profile.long_trip);
+  const km = (n: number) => n.toLocaleString("ko-KR");
   return (
     <>
-      <NumberField
-        label="연간 주행거리"
-        unit="km"
-        step={1000}
-        value={profile.annual_km}
-        onChange={(v) => setProfile({ annual_km: v })}
+      <Segmented
+        label="주행거리 입력 방식"
+        value={profile.distance_mode}
+        options={DISTANCE_MODE_OPTIONS}
+        onChange={(v) => setProfile({ distance_mode: v })}
       />
-      <NumberField
-        label="출퇴근 왕복 거리"
-        unit="km"
-        value={profile.commute_km}
-        onChange={(v) => setProfile({ commute_km: v })}
-      />
+      {profile.distance_mode === "annual" ? (
+        <NumberField
+          label="연간 주행거리"
+          unit="km"
+          step={1000}
+          value={profile.annual_km}
+          onChange={(v) => setProfile({ annual_km: v })}
+        />
+      ) : (
+        <div>
+          <NumberField
+            label="출퇴근 왕복 거리"
+            unit="km"
+            value={profile.commute_km}
+            onChange={(v) => setProfile({ commute_km: v })}
+          />
+          <p className="field-help distance-estimate" aria-live="polite">
+            <Mono
+              text={`연간 약 ${km(estimate.annual)}km로 계산됩니다 (출퇴근 ${km(estimate.commute)} + 주말·기타 ${km(estimate.weekend)})`}
+            />
+          </p>
+        </div>
+      )}
       <Segmented
         label="장거리 주행 빈도"
         value={profile.long_trip}

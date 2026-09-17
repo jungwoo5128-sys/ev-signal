@@ -9,6 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.calc import (  # noqa: E402
+    calc_annual_km_from_commute,
     calc_bep,
     calc_price_gap,
     calc_co2,
@@ -119,3 +120,19 @@ def test_bep_from_prices():
     result = calc_bep(price_gap, 10_200_000, 1_609_107)
     assert result["net_cost"] == pytest.approx(5_800_000, abs=WON_TOL)
     assert result["bep_years"] == pytest.approx(3.6, abs=TOL)
+
+
+@pytest.mark.parametrize("commute_km, long_trip, commute_year, weekend, annual", [
+    (40, "월3회이상", 10_400, 7_000, 17_400),
+    (30, "거의없음", 7_800, 2_000, 9_800),
+    (0, "월1~2회", 0, 4_000, 4_000),
+])
+def test_annual_km_from_commute(commute_km, long_trip, commute_year, weekend, annual):
+    result = calc_annual_km_from_commute(commute_km, long_trip)
+    assert result == {"commute_km_year": commute_year, "weekend_km_year": weekend, "annual_km": annual}
+    assert all(isinstance(v, float) for v in result.values())
+
+
+def test_annual_km_from_commute_invalid_long_trip():
+    with pytest.raises(ValueError):
+        calc_annual_km_from_commute(40, "매일")

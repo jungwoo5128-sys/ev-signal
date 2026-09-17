@@ -6,8 +6,11 @@ from config import (
     CHARGING_PRICE,
     CO2_ELECTRIC,
     CO2_GASOLINE,
+    COMMUTE_DAYS_PER_WEEK,
     GASOLINE_PRICE,
     PINE_ABSORPTION,
+    WEEKEND_KM_BY_LONG_TRIP,
+    WEEKS_PER_YEAR,
 )
 
 
@@ -19,6 +22,22 @@ def _require_positive(name: str, value) -> float:
     if value <= 0:
         raise ValueError(f"{name} 값은 0보다 커야 합니다: {value}")
     return value
+
+
+def calc_annual_km_from_commute(commute_km, long_trip) -> dict:
+    """출퇴근 왕복 거리와 장거리 주행 빈도로 연간 주행거리(km)를 환산한다.
+
+    연간 = 출퇴근 왕복 × 주 5일 × 52주 + 주말·기타 주행(장거리 빈도별)
+    """
+    if long_trip not in WEEKEND_KM_BY_LONG_TRIP:
+        raise ValueError(f"장거리 주행 빈도 값이 올바르지 않습니다: {long_trip}")
+    commute_year = float(commute_km) * COMMUTE_DAYS_PER_WEEK * WEEKS_PER_YEAR
+    weekend = float(WEEKEND_KM_BY_LONG_TRIP[long_trip])
+    return {
+        "commute_km_year": commute_year,
+        "weekend_km_year": weekend,
+        "annual_km": commute_year + weekend,
+    }
 
 
 def calc_efficiency(battery_kwh, range_normal) -> float:

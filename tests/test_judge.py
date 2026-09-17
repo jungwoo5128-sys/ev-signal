@@ -119,3 +119,10 @@ def test_timing_advice(status, rate, expected):
     level, message = timing_advice({"접수상태": status, "접수율": rate})
     assert level == expected
     assert message
+
+
+def test_commute_rule_skipped_when_commute_unknown():
+    """연간 주행거리를 직접 입력한 경우(commute_km=None) 출퇴근 규칙을 평가하지 않는다."""
+    grade, reasons = judge(replace(BASE, home_charger=False, work_charger=True, commute_km=None))
+    assert reasons == [("warn", "주거지 충전 불가 — 근무지 충전에 의존")]
+    assert grade == "YELLOW"

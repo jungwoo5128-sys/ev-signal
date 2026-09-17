@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 import pandas as pd
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from src import calc, judge, llm, loader
 
@@ -20,12 +20,14 @@ FALLBACK_RETRY_SECONDS = 60
 CHAT_HISTORY_TURNS = 6  # 질문·답변 한 쌍을 한 턴으로 본다
 
 LongTrip = Literal["거의없음", "월1~2회", "월3회이상"]
+DistanceMode = Literal["annual", "commute"]  # 연간 주행거리 직접 입력 / 출퇴근 거리로 환산
 WorkCharger = Literal["있음", "없음", "해당없음"]
 
 
 class EvaluateInput(BaseModel):
-    annual_km: int = Field(gt=0)
-    commute_km: int = Field(ge=0)
+    distance_mode: DistanceMode = "annual"
+    annual_km: int | None = Field(default=None, gt=0)  # distance_mode="annual"일 때 사용
+    commute_km: int | None = Field(default=None, ge=0)  # distance_mode="commute"일 때 사용
     long_trip: LongTrip
     region: str
     home_charger: bool
@@ -36,6 +38,29 @@ class EvaluateInput(BaseModel):
     ev_price_manwon: int = Field(ge=0)
     ice_price_manwon: int = Field(ge=0)
     has_scrap: bool
+
+    @model_validator(mode="after")
+    def _distance_for_mode(self):
+        if self.distance_mode == "annual" and self.annual_km is None:
+            raise ValueError("연간 주행거리를 입력하세요")
+        if self.distance_mode == "commute" and self.commute_km is None:
+            raise ValueError("출퇴근 왕복 거리를 입력하세요")
+        return self
+
+
+@dataclass
+class Driving:
+    """계산·판정에 쓰는 주행 정보."""
+    annual_km: int
+    commute_km: int | None  # 직접 입력 방식이면 모름(None) → 출퇴근 규칙 미적용
+    source_note: str
+
+
+def driving(inp: EvaluateInput) -> Driving:
+    if inp.distance_mode == "commute":
+        est = calc.calc_annual_km_from_commute(inp.commute_km, inp.long_trip)
+        return Driving(round(est["annual_km"]), inp.commute_km, f"출퇴근 {inp.commute_km:,}km 기준 환산")
+    return Driving(inp.annual_km, None, "직접 입력")
 
 
 # --- 표시 포맷 (app.py와 동일) -------------------------------------------
@@ -113,6 +138,7 @@ class Evaluation:
     status: dict
     level: str
     advice: str
+    driving: Driving
 
 
 def _evaluate(store: Store, inp: EvaluateInput) -> Evaluation:
@@ -121,10 +147,11 @@ def _evaluate(store: Store, inp: EvaluateInput) -> Evaluation:
         raise KeyError(f"'{inp.region}' 지역이 없습니다.")
     model_info = loader.get_model_info(store.model_df, inp.region, inp.model)
     ev_eff = calc.calc_efficiency(model_info["battery_kwh"], model_info["range_normal"])
+    drive = driving(inp)
 
-    fuel = calc.calc_fuel_saving(inp.annual_km, inp.current_efficiency, ev_eff)
+    fuel = calc.calc_fuel_saving(drive.annual_km, inp.current_efficiency, ev_eff)
     subsidy = calc.calc_subsidy(model_info, inp.has_scrap)
-    co2 = calc.calc_co2(inp.annual_km, inp.current_efficiency, ev_eff)
+    co2 = calc.calc_co2(drive.annual_km, inp.current_efficiency, ev_eff)
     ev_price = inp.ev_price_manwon * 10000  # 만원 → 원
     ice_price = inp.ice_price_manwon * 10000
     price_gap = calc.calc_price_gap(ev_price, ice_price)
@@ -138,8 +165,8 @@ def _evaluate(store: Store, inp: EvaluateInput) -> Evaluation:
         work_charger=inp.work_charger == "있음",  # '해당없음'은 '없음'과 동일
         long_trip=inp.long_trip,
         range_cold=model_info["range_cold"],
-        annual_km=inp.annual_km,
-        commute_km=inp.commute_km,
+        annual_km=drive.annual_km,
+        commute_km=drive.commute_km,
     )
     grade, reasons = judge.judge(ctx)
     level, advice = judge.timing_advice(status)
@@ -158,7 +185,7 @@ def _evaluate(store: Store, inp: EvaluateInput) -> Evaluation:
             "range_normal": model_info["range_normal"],
         },
     }
-    return Evaluation(grade, reasons, ctx, calc_results, model_info, status, level, advice)
+    return Evaluation(grade, reasons, ctx, calc_results, model_info, status, level, advice, drive)
 
 
 def evaluate(store: Store, inp: EvaluateInput) -> dict:
@@ -192,7 +219,7 @@ def evaluate(store: Store, inp: EvaluateInput) -> dict:
         "cards": {
             "fuel_saving": {
                 "value": won_k(fuel["saving"]),
-                "note": f"연 {inp.annual_km:,}km · 연비 {inp.current_efficiency}km/L 기준",
+                "note": f"연 {ev.driving.annual_km:,}km · 연비 {inp.current_efficiency}km/L 기준",
             },
             "subsidy": {"value": won(subsidy_amount), "note": breakdown},
             "co2": {
@@ -221,6 +248,7 @@ def evaluate(store: Store, inp: EvaluateInput) -> dict:
                 },
             ],
             "running_cost": [
+                {"label": "연간 주행거리", "value": f"{ev.driving.annual_km:,}km", "note": ev.driving.source_note},
                 {"label": "현재 차량 연간 유류비", "value": won_k(fuel["annual_fuel_cost"]), "note": ""},
                 {"label": "전기차 연간 충전비", "value": won_k(fuel["annual_charge_cost"]), "note": ""},
                 {"label": "연간 절감액", "value": won_k(fuel["saving"]), "note": ""},

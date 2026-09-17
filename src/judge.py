@@ -16,7 +16,7 @@ class JudgeContext:
     long_trip: str  # '거의없음' | '월1~2회' | '월3회이상'
     range_cold: int
     annual_km: int
-    commute_km: int  # 출퇴근 왕복 거리
+    commute_km: int | None  # 출퇴근 왕복 거리. 연간 주행거리를 직접 입력한 경우 None
 
 
 def _bep_reason(ctx: JudgeContext):
@@ -55,7 +55,12 @@ def _annual_km_reason(ctx: JudgeContext):
 
 
 def _commute_reason(ctx: JudgeContext):
-    """주거지 충전이 가능하면 밤새 충전되므로 출퇴근 거리는 보지 않는다."""
+    """주거지 충전이 가능하면 밤새 충전되므로 출퇴근 거리는 보지 않는다.
+
+    출퇴근 거리를 모르는 경우(연간 주행거리 직접 입력, commute_km=None)는 평가하지 않는다.
+    """
+    if ctx.commute_km is None:
+        return None
     if not ctx.home_charger and ctx.commute_km >= 60:
         return (WARN, f"출퇴근 왕복 {ctx.commute_km}km + 주거지 충전 불가 — 공용 충전 의존도 높음")
     return None
