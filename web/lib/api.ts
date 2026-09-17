@@ -16,7 +16,8 @@ export interface Profile {
   hold_years: HoldYears;
   model: string | null;
   current_efficiency: number;
-  ev_price_manwon: number;
+  /** 비어 있으면 null (판정 버튼 비활성화) */
+  ev_price_manwon: number | null;
   ice_price_manwon: number;
   has_scrap: boolean;
 }
@@ -57,6 +58,15 @@ export interface Explanation {
   fallback: boolean;
 }
 
+export interface ModelPrice {
+  base_price_manwon: number;
+  trim: string;
+  tax_included: boolean | null;
+  price_basis: string | null;
+  source: string;
+  checked_at: string;
+}
+
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -93,6 +103,7 @@ export const api = {
       model: p.model,
       has_scrap: p.has_scrap,
     }),
+  modelPrices: () => request<Record<string, ModelPrice>>("/model-prices"),
   contact: (region: string) =>
     request<{ contact: string | null }>(`/contact?region=${encodeURIComponent(region)}`),
   /** region이 null이면 공통 규정만으로 답한다. */

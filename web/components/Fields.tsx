@@ -19,24 +19,27 @@ export function Field({ label, help, children, htmlFor }: FieldProps) {
   );
 }
 
-export function NumberField({
-  label,
-  help,
-  value,
-  onChange,
-  step = 1,
-  unit,
-  decimal = false,
-}: {
+type NumberFieldProps = {
   label: string;
   help?: string;
-  value: number;
-  onChange: (v: number) => void;
   step?: number;
   unit?: string;
   decimal?: boolean;
-}) {
+  placeholder?: string;
+} & (
+  | { allowEmpty?: false; value: number; onChange: (v: number) => void }
+  /** 비울 수 있는 입력: 빈 값은 0이 아니라 null로 전달 */
+  | { allowEmpty: true; value: number | null; onChange: (v: number | null) => void }
+);
+
+export function NumberField(props: NumberFieldProps) {
+  const { label, help, step = 1, unit, decimal = false, placeholder } = props;
   const id = useId();
+  const value = props.value;
+  const handleChange = (raw: string) => {
+    if (props.allowEmpty) props.onChange(raw === "" ? null : Number(raw));
+    else props.onChange(raw === "" ? 0 : Number(raw));
+  };
   return (
     <Field label={label} help={help} htmlFor={id}>
       <div className="input-wrap">
@@ -47,8 +50,9 @@ export function NumberField({
           inputMode={decimal ? "decimal" : "numeric"}
           min={0}
           step={step}
-          value={Number.isNaN(value) ? "" : value}
-          onChange={(e) => onChange(e.target.value === "" ? 0 : Number(e.target.value))}
+          placeholder={placeholder}
+          value={value === null || Number.isNaN(value) ? "" : value}
+          onChange={(e) => handleChange(e.target.value)}
         />
         {unit && <span className="input-unit">{unit}</span>}
       </div>

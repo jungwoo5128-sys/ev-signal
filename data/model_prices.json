@@ -1,0 +1,42 @@
+{
+  "더 뉴 아이오닉5 2WD 롱레인지 19인치": {
+    "base_price_manwon": 5290,
+    "trim": "Long Range Modern (모던)",
+    "tax_included": true,
+    "price_basis": "세제혜택 후 판매가격 (세제혜택 전 5,565만원), 가격표 2026년 9월 1일 기준",
+    "source": "https://www.hyundai.com/kr/ko/e/vehicles/ioniq5/price",
+    "checked_at": "2026-09-17"
+  },
+  "EV3 롱레인지 2WD 17인치": {
+    "base_price_manwon": 4415,
+    "trim": "에어 롱레인지",
+    "tax_included": true,
+    "price_basis": "세제혜택 후 판매가격 (세제혜택 전 4,645만원), 가격표 2026년 9월 1일 기준",
+    "source": "https://www.kia.com/kr/vehicles/ev3/price",
+    "checked_at": "2026-09-17"
+  },
+  "캐스퍼 일렉트릭 기본형 15인치": {
+    "base_price_manwon": 2847,
+    "trim": "프리미엄 (42kWh, 15인치)",
+    "tax_included": true,
+    "price_basis": "세제혜택 후 판매가격 (세제혜택 전 2,995만원), 가격표 2026년 7월 15일 기준",
+    "source": "https://casper.hyundai.com/vehicles/electric/price",
+    "checked_at": "2026-09-17"
+  },
+  "Model Y Premium RWD": {
+    "base_price_manwon": 4999,
+    "trim": "Model Y Premium RWD",
+    "tax_included": null,
+    "price_basis": "공식 구성기 표시 가격. 부가세·세제혜택 반영 여부가 페이지에 명시되어 있지 않음",
+    "source": "https://www.tesla.com/ko_kr/modely/design",
+    "checked_at": "2026-09-17"
+  },
+  "코나 일렉트릭 2WD 롱레인지 17인치": {
+    "base_price_manwon": 4657,
+    "trim": "Long Range Premium (프리미엄, 17인치)",
+    "tax_included": true,
+    "price_basis": "세제혜택 후 판매가격 (세제혜택 전 4,899만원), 가격표 2026년 9월 1일 기준",
+    "source": "https://www.hyundai.com/kr/ko/e/vehicles/kona-electric/price",
+    "checked_at": "2026-09-17"
+  }
+}

@@ -81,3 +81,31 @@ def test_subsidy_rules_national_surcharges_and_no_contradiction():
     # 청년 20% 가산은 국비 공통이지만 연령 기준은 자료에 없으므로 지자체별 확인 항목으로 명시
     local_section = text.split("## 지자체별로 다른 사항", 1)[1]
     assert "- 청년 연령 기준" in local_section
+
+
+
+# --- 모델별 기본 가격 --------------------------------------------------------
+
+def test_model_prices_match_excel_models(model_df):
+    prices = loader.load_model_prices()
+    assert prices["더 뉴 아이오닉5 2WD 롱레인지 19인치"]["base_price_manwon"] == 5290
+    assert prices["EV3 롱레인지 2WD 17인치"]["base_price_manwon"] == 4415
+    models = set(model_df["모델명"])
+    for name, info in prices.items():
+        assert name in models, name  # 엑셀 모델명과 정확히 일치
+        assert isinstance(info["base_price_manwon"], int) and info["base_price_manwon"] > 0
+        assert info["source"].startswith("https://")
+
+
+def test_model_prices_missing_or_invalid(tmp_path):
+    assert loader.load_model_prices(tmp_path / "없음.json") == {}
+    broken = tmp_path / "broken.json"
+    broken.write_text("{not json", encoding="utf-8")
+    assert loader.load_model_prices(broken) == {}
+    partial = tmp_path / "partial.json"
+    partial.write_text(
+        '{"A": {"base_price_manwon": 5000}, "B": {"base_price_manwon": 0}, '
+        '"C": {"base_price_manwon": "5000"}, "D": {"base_price_manwon": true}, "E": 1}',
+        encoding="utf-8",
+    )
+    assert list(loader.load_model_prices(partial)) == ["A"]

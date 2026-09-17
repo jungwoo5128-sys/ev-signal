@@ -263,3 +263,13 @@ def test_decimal_commute_60_warns(client):
 def test_annual_km_still_integer_only(client):
     """연간 주행거리는 정수 입력 기준 (소수는 422). 점검 결과를 고정해 둔다."""
     assert client.post("/evaluate", json={**EXAMPLE, "annual_km": 15000.5}).status_code == 422
+
+
+
+def test_model_prices_endpoint(client):
+    body = client.get("/model-prices").json()
+    ioniq = body["더 뉴 아이오닉5 2WD 롱레인지 19인치"]
+    assert ioniq["base_price_manwon"] == 5290
+    assert set(ioniq) == {"base_price_manwon", "trim", "tax_included", "price_basis", "source", "checked_at"}
+    assert body["EV3 롱레인지 2WD 17인치"]["base_price_manwon"] == 4415
+    assert "더 뉴 아이오닉5 AWD 롱레인지 19인치" not in body  # 수집하지 않은 모델은 없음

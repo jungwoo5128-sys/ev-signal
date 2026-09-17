@@ -58,6 +58,11 @@ def models(request: Request, region: str):
     return service.complete_models(s, region)
 
 
+@app.get("/model-prices")
+def model_prices(request: Request):
+    return service.model_prices(store(request))
+
+
 @app.post("/evaluate")
 def evaluate(request: Request, inp: service.EvaluateInput):
     return service.evaluate(store(request), inp)

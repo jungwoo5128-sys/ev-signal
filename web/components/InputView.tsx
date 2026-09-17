@@ -23,9 +23,23 @@ interface Props {
   regions: string[];
   onSubmit: () => void;
   onExample: () => void;
+  /** 모델 선택 (가격 자동 입력은 상위에서 처리) */
+  onSelectModel: (model: string) => void;
+  /** 사용자가 전기차 가격을 직접 수정 */
+  onEditEvPrice: (price: number | null) => void;
 }
 
-export function InputView({ profile, setProfile, step, setStep, regions, onSubmit, onExample }: Props) {
+export function InputView({
+  profile,
+  setProfile,
+  step,
+  setStep,
+  regions,
+  onSubmit,
+  onExample,
+  onSelectModel,
+  onEditEvPrice,
+}: Props) {
   return (
     <div className="input-layout">
       <section className="hero">
@@ -70,7 +84,14 @@ export function InputView({ profile, setProfile, step, setStep, regions, onSubmi
         <div className="form-fields">
           {step === 1 && <StepDriving profile={profile} setProfile={setProfile} />}
           {step === 2 && <StepResidence profile={profile} setProfile={setProfile} regions={regions} />}
-          {step === 3 && <StepVehicle profile={profile} setProfile={setProfile} />}
+          {step === 3 && (
+            <StepVehicle
+              profile={profile}
+              setProfile={setProfile}
+              onSelectModel={onSelectModel}
+              onEditEvPrice={onEditEvPrice}
+            />
+          )}
         </div>
 
         <div className="form-nav">
@@ -204,7 +225,12 @@ function StepResidence({ profile, setProfile, regions }: StepProps & { regions: 
   );
 }
 
-function StepVehicle({ profile, setProfile }: StepProps) {
+function StepVehicle({
+  profile,
+  setProfile,
+  onSelectModel,
+  onEditEvPrice,
+}: StepProps & { onSelectModel: (model: string) => void; onEditEvPrice: (price: number | null) => void }) {
   const [models, setModels] = useState<{ region: string; list: string[] } | null>(null);
   const region = profile.region;
 
@@ -237,7 +263,7 @@ function StepVehicle({ profile, setProfile }: StepProps) {
         options={list}
         placeholder={!loaded ? "불러오는 중..." : list.length ? "모델을 선택하세요" : "지원 모델 정보가 없습니다"}
         disabled={!list.length}
-        onChange={(v) => setProfile({ model: v })}
+        onChange={onSelectModel}
       />
       {loaded && !list.length && <p className="notice-inline">이 지역은 지원 모델 정보가 없습니다</p>}
       <NumberField
@@ -254,8 +280,10 @@ function StepVehicle({ profile, setProfile }: StepProps) {
           help="보조금 적용 전 가격"
           unit="만원"
           step={100}
+          allowEmpty
+          placeholder="차량 가격을 입력하세요"
           value={profile.ev_price_manwon}
-          onChange={(v) => setProfile({ ev_price_manwon: v })}
+          onChange={onEditEvPrice}
         />
         <NumberField
           label="비교 내연기관차 가격"

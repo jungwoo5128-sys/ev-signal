@@ -7,7 +7,7 @@
 import math
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 import pandas as pd
@@ -106,13 +106,22 @@ class Store:
     summary_df: pd.DataFrame
     model_df: pd.DataFrame
     base_date: str
+    model_prices: dict[str, dict] = field(default_factory=dict)
 
 
 def load_store(path=None) -> Store:
     path = path or loader.find_latest_file()
     summary_df, model_df = loader.load_data(path)
     base_date = loader.FILE_PATTERN.search(path.name).group(1)
-    return Store(summary_df, model_df, base_date)
+    return Store(summary_df, model_df, base_date, loader.load_model_prices())
+
+
+PRICE_FIELDS = ("base_price_manwon", "trim", "tax_included", "price_basis", "source", "checked_at")
+
+
+def model_prices(store: Store) -> dict[str, dict]:
+    """모델명 → 기본 가격 정보. 프론트는 모델 선택 시 기본값으로만 쓰고 사용자가 수정할 수 있다."""
+    return {m: {k: info.get(k) for k in PRICE_FIELDS} for m, info in store.model_prices.items()}
 
 
 def regions(store: Store) -> list[str]:

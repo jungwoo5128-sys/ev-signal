@@ -11,13 +11,15 @@ export const DEFAULTS: Profile = {
   hold_years: 7,
   model: null,
   current_efficiency: 11.2,
-  ev_price_manwon: 5200,
+  ev_price_manwon: null, // 모델을 고르면 공식 가격으로 자동 입력
   ice_price_manwon: 3600,
   has_scrap: true,
 };
 
 export const EXAMPLE_PROFILE: Profile = {
   ...DEFAULTS,
+  // 발표자료 기준값(1,609,000원 / 3.6년)에 맞춘 고정값. 수집 가격(5,290만원)으로 바꾸지 말 것
+  ev_price_manwon: 5200,
   distance_mode: "annual",
   long_trip: "월3회이상",
   region: "성남시",
@@ -74,5 +76,7 @@ export const GRADE_MESSAGES: Record<Grade, string> = {
 export function stepReady(step: number, p: Profile): boolean {
   if (step === 1) return p.distance_mode === "annual" ? p.annual_km > 0 : p.commute_km >= 0;
   if (step === 2) return Boolean(p.region);
-  return Boolean(p.region && p.model && p.current_efficiency > 0);
+  return Boolean(
+    p.region && p.model && p.current_efficiency > 0 && p.ev_price_manwon !== null && p.ev_price_manwon > 0,
+  );
 }

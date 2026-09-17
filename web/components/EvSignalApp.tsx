@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatWidget } from "@/components/ChatWidget";
 import { InputView } from "@/components/InputView";
 import { ResultView, type Loadable } from "@/components/ResultView";
-import { api, type Evaluation, type Explanation, type Profile } from "@/lib/api";
+import { api, type Evaluation, type Explanation, type ModelPrice, type Profile } from "@/lib/api";
 import { DEFAULTS, EXAMPLE_PROFILE } from "@/lib/profile";
 
 type Result =
@@ -27,9 +27,14 @@ export function EvSignalApp() {
   const [regionWarning, setRegionWarning] = useState<string | null>(null);
   const requestId = useRef(0);
 
+  // 모델별 기본 가격. 사용자가 전기차 가격을 직접 고친 뒤에는 모델을 바꿔도 덮어쓰지 않는다.
+  const [modelPrices, setModelPrices] = useState<Record<string, ModelPrice>>({});
+  const [evPriceEdited, setEvPriceEdited] = useState(false);
+
   useEffect(() => {
     api.regions().then(setRegions).catch(() => setRegions([]));
     api.meta().then((m) => setBaseDate(m.base_date)).catch(() => {});
+    api.modelPrices().then(setModelPrices).catch(() => setModelPrices({}));
   }, []);
 
   const setProfile = (update: Partial<Profile>) => setProfileState((p) => ({ ...p, ...update }));
@@ -74,8 +79,24 @@ export function EvSignalApp() {
     run(profile);
   };
 
+  /** 모델 선택 시 공식 가격 자동 입력 (데이터 없으면 비움). 직접 수정한 값은 유지 */
+  const selectModel = (model: string) => {
+    setProfileState((p) => ({
+      ...p,
+      model,
+      ...(evPriceEdited ? {} : { ev_price_manwon: modelPrices[model]?.base_price_manwon ?? null }),
+    }));
+  };
+
+  const editEvPrice = (price: number | null) => {
+    setEvPriceEdited(true);
+    setProfile({ ev_price_manwon: price });
+  };
+
+  /** 예시 프로필은 자동 입력 없이 고정값(전기차 5,200만원)을 그대로 쓴다 */
   const fillExample = () => {
     setProfileState(EXAMPLE_PROFILE);
+    setEvPriceEdited(false);
     setStep(1);
     setRegionWarning(null);
     run(EXAMPLE_PROFILE);
@@ -135,6 +156,8 @@ export function EvSignalApp() {
             regions={regions}
             onSubmit={submit}
             onExample={fillExample}
+            onSelectModel={selectModel}
+            onEditEvPrice={editEvPrice}
           />
         )}
 

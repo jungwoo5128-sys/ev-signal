@@ -1,5 +1,7 @@
 """엑셀 로드 및 파싱."""
 
+import json
+import logging
 import re
 from pathlib import Path
 
@@ -7,6 +9,9 @@ import pandas as pd
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 SUBSIDY_RULES_PATH = DATA_DIR / "subsidy_rules.md"
+MODEL_PRICES_PATH = DATA_DIR / "model_prices.json"
+
+logger = logging.getLogger(__name__)
 FILE_PATTERN = re.compile(r"무공해차_보조금현황_2026_(\d{4}-\d{2}-\d{2})\.xlsx$")
 
 SUMMARY_SHEET = "요약"
@@ -97,6 +102,28 @@ def load_data(path=None) -> tuple[pd.DataFrame, pd.DataFrame]:
         models[dst] = pd.to_numeric(models[src], errors="coerce").astype("Int64") * 10000
 
     return summary, models
+
+
+def load_model_prices(path: Path = MODEL_PRICES_PATH) -> dict[str, dict]:
+    """모델별 기본 가격(제조사 공식 가격). 입력 화면의 전기차 가격 기본값으로만 쓴다.
+
+    파일이 없거나 형식이 잘못되면 빈 dict, 가격이 양의 정수가 아닌 항목은 제외한다.
+    """
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except json.JSONDecodeError as e:
+        logger.warning("model_prices.json 형식 오류: %s", e)
+        return {}
+    prices = {}
+    for model, info in raw.items() if isinstance(raw, dict) else []:
+        price = info.get("base_price_manwon") if isinstance(info, dict) else None
+        if isinstance(price, int) and not isinstance(price, bool) and price > 0:
+            prices[model] = info
+        else:
+            logger.warning("model_prices.json: '%s' 가격 값이 올바르지 않아 제외", model)
+    return prices
 
 
 def load_subsidy_rules(path: Path = SUBSIDY_RULES_PATH) -> str:
