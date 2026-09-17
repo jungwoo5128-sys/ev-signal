@@ -77,6 +77,7 @@ export function ResultView({
         </span>
         <MetricCard tone="green" title="연간 연료비 절감" card={cards.fuel_saving} />
         <MetricCard tone="pink" title="예상 보조금" card={cards.subsidy} />
+        <MetricCard tone="peach" title="회수 기간" card={cards.payback} />
         <MetricCard tone="sky" title="연간 CO2 감축량" card={cards.co2} />
         <div className={`panel status level-${status.level}`}>
           <div className="status-head">
@@ -204,7 +205,7 @@ function MetricCard({
   title,
   card,
 }: {
-  tone: "green" | "pink" | "sky";
+  tone: "green" | "pink" | "peach" | "sky";
   title: string;
   card: { value: string; note: string };
 }) {

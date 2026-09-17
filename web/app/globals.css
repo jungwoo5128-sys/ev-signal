@@ -38,6 +38,7 @@
   --point-pink: #ff4eaf;
   --point-sky: #4a93b7;
   --point-sky-light: #a6d4e7;
+  --point-peach: #e0987a;
 
   /* 형광펜 강조 */
   --mark-green: #70d692;
@@ -874,11 +875,8 @@ p {
   }
 }
 
-@media (min-width: 1040px) {
-  .bento {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
+/* 연료비·보조금 / 회수 기간·CO2 2×2, 접수 현황은 전폭 */
+@media (min-width: 760px) {
   .bento .status {
     grid-column: 1 / -1;
   }
@@ -894,6 +892,7 @@ p {
 
 .metric.tone-green { background: var(--tint-green); }
 .metric.tone-pink { background: var(--tint-pink); }
+.metric.tone-peach { background: var(--tint-peach); }
 .metric.tone-sky { background: var(--tint-sky); }
 
 .card-title {
@@ -915,6 +914,7 @@ p {
 
 .metric.tone-green .card-title::before { background: var(--point-green); }
 .metric.tone-pink .card-title::before { background: var(--point-pink); }
+.metric.tone-peach .card-title::before { background: var(--point-peach); }
 .metric.tone-sky .card-title::before { background: var(--point-sky); }
 
 .metric-value {

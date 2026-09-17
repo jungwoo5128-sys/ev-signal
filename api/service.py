@@ -91,6 +91,17 @@ def format_bep(years):
     return f"{years:.1f}년"
 
 
+def bep_note(bep_years, hold_years, ev_price, ice_price):
+    """회수 기간 카드 보조 문구. 판정 규칙(judge._bep_reason)과 같은 경계를 쓴다."""
+    if math.isinf(bep_years):
+        return "연간 절감액이 없어 회수 불가"
+    if bep_years == 0.0:
+        return "전기차가 더 저렴" if ev_price <= ice_price else "보조금으로 전액 충당"
+    if bep_years > hold_years:
+        return f"보유 예정 {hold_years}년 내 회수 불가"
+    return f"보유 예정 {hold_years}년 내 회수"
+
+
 def format_net_cost(value, ev_price, ice_price):
     if value > 0:
         return won(value)
@@ -236,6 +247,10 @@ def evaluate(store: Store, inp: EvaluateInput) -> dict:
                 "note": f"연 {ev.driving.annual_km:,}km · 연비 {inp.current_efficiency}km/L 기준",
             },
             "subsidy": {"value": won(subsidy_amount), "note": breakdown},
+            "payback": {
+                "value": format_bep(bep["bep_years"]),
+                "note": bep_note(bep["bep_years"], inp.hold_years, prices["ev_price"], prices["ice_price"]),
+            },
             "co2": {
                 "value": f"{co2['reduction_ton']:.2f}톤",
                 "note": f"소나무 {co2['pine_trees']:.0f}그루가 1년간 흡수하는 양",

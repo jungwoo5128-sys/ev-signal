@@ -36,7 +36,7 @@ export interface Card {
 export interface Evaluation {
   grade: Grade;
   reasons: { severity: "block" | "warn"; text: string }[];
-  cards: { fuel_saving: Card; subsidy: Card; co2: Card };
+  cards: { fuel_saving: Card; subsidy: Card; payback: Card; co2: Card };
   status: {
     level: "ok" | "urgent" | "over" | "closed" | "unknown";
     advice: string;

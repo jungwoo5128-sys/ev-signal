@@ -191,6 +191,7 @@ def test_evaluate_annual_mode_keeps_baseline(client, extra):
     assert body["cards"]["fuel_saving"]["value"] == "1,609,000원"
     assert body["cards"]["subsidy"]["value"] == "10,200,000원"
     assert body["cards"]["co2"]["value"] == "1.85톤"
+    assert body["cards"]["payback"] == {"value": "3.6년", "note": "보유 예정 7년 내 회수"}
     assert body["evidence"]["result"][0]["value"] == "3.6년"
     assert _running(body)["연간 주행거리"] == ("15,000km", "직접 입력")
     assert body["driving"] == {"mode": "annual", "annual_km": 15000}
@@ -273,3 +274,18 @@ def test_model_prices_endpoint(client):
     assert set(ioniq) == {"base_price_manwon", "trim", "tax_included", "price_basis", "source", "checked_at"}
     assert body["EV3 롱레인지 2WD 17인치"]["base_price_manwon"] == 4415
     assert "더 뉴 아이오닉5 AWD 롱레인지 19인치" not in body  # 수집하지 않은 모델은 없음
+
+
+@pytest.mark.parametrize(
+    "bep, hold, ev, ice, expected",
+    [
+        (3.6, 7, 5200, 3600, "보유 예정 7년 내 회수"),
+        (3.6, 3, 5200, 3600, "보유 예정 3년 내 회수 불가"),
+        (5.0, 5, 5200, 3600, "보유 예정 5년 내 회수"),  # 경계: 판정 규칙도 초과만 불가
+        (0.0, 7, 3000, 3600, "전기차가 더 저렴"),
+        (0.0, 7, 4000, 3600, "보조금으로 전액 충당"),
+        (float("inf"), 7, 5200, 3600, "연간 절감액이 없어 회수 불가"),
+    ],
+)
+def test_bep_note(bep, hold, ev, ice, expected):
+    assert service.bep_note(bep, hold, ev, ice) == expected
