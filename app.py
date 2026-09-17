@@ -90,6 +90,7 @@ def complete_models(model_df, region):
 
 ss = st.session_state
 ss.setdefault("step", "input")
+ss.setdefault("input_step", 1)
 for name, value in DEFAULTS.items():
     ss.setdefault(name, value)
 
@@ -108,12 +109,32 @@ def reset_widgets():
 
 
 def fill_example():
-    """콜백은 스크립트 실행 전에 돌기 때문에 위젯 key에 직접 할당해도 안전하다.
-    위젯 값을 지우고 rerun을 강제하던 방식은 첫 세션에서 클릭이 무시되는 문제가 있었다."""
+    """모든 값을 채우고 단계를 건너뛰어 바로 결과 화면으로 이동 (시연용).
+
+    콜백은 스크립트 실행 전에 돌기 때문에 위젯 key에 직접 할당해도 안전하다.
+    """
     for name, value in EXAMPLE_PROFILE.items():
         ss[name] = value
         ss[f"w_{name}"] = value
+    ss.input_step = 1
+    ss.step = "result"
     ss.pop("w_result_region", None)
+
+
+def go_to_step(n):
+    ss.input_step = n
+
+
+def submit():
+    ss.step = "result"
+    ss.pop("w_result_region", None)
+
+
+def back_to_input():
+    """결과 → STEP 1. 입력값(ss[name])은 유지되고 위젯은 그 값으로 다시 그려진다."""
+    ss.step = "input"
+    ss.input_step = 1
+    reset_widgets()
 
 
 # 로드가 끝나기 전에는 폼·버튼을 그리지 않는다 (준비 전 클릭이 무시되는 문제 방지)
@@ -125,107 +146,174 @@ loading.empty()
 
 # --- 입력 화면 ----------------------------------------------------------
 
+STEPS = ["주행", "거주", "차량·보유"]
+STEP_ACTIVE = "#2e9e5b"
+STEP_DONE = "#17a2b8"  # 시안
+
+
+def render_step_indicator(current):
+    parts = []
+    for i, label in enumerate(STEPS, start=1):
+        if i == current:
+            bg, fg, weight = STEP_ACTIVE, "#fff", 700
+        elif i < current:
+            bg, fg, weight = STEP_DONE, "#fff", 400
+        else:
+            bg, fg, weight = OFF_COLOR, "#666", 400
+        parts.append(
+            f"""<div style="display:flex;flex-direction:column;align-items:center;min-width:64px">
+                  <div style="width:36px;height:36px;border-radius:50%;background:{bg};color:{fg};
+                              display:flex;align-items:center;justify-content:center;
+                              font-weight:700">{i}</div>
+                  <div style="margin-top:4px;font-size:13px;font-weight:{weight}">{label}</div>
+                </div>"""
+        )
+        if i < len(STEPS):
+            line = STEP_DONE if i < current else OFF_COLOR
+            parts.append(
+                f'<div style="flex:0 0 48px;height:3px;background:{line};margin-top:17px"></div>'
+            )
+    st.markdown(
+        f'<div style="display:flex;align-items:flex-start;margin:8px 0 16px">{"".join(parts)}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def step_ready(n):
+    """각 단계의 필수값."""
+    if n == 1:
+        return ss.annual_km > 0
+    if n == 2:
+        return bool(ss.region)
+    return bool(ss.region and ss.model and ss.current_efficiency > 0)
+
+
+def render_step_driving():
+    ss.annual_km = st.number_input(
+        "연간 주행거리 (km)", min_value=0, step=1000, key=bind("annual_km")
+    )
+    ss.commute_km = st.number_input(
+        "출퇴근 왕복 거리 (km)", min_value=0, step=1, key=bind("commute_km")
+    )
+    ss.long_trip = st.selectbox(
+        "장거리 주행 빈도", LONG_TRIP_OPTIONS, key=bind("long_trip")
+    )
+
+
+def render_step_residence():
+    ss.region = st.selectbox(
+        "거주 지자체",
+        loader.get_regions(summary_df),
+        index=None,
+        placeholder="지자체를 선택하세요",
+        key=bind("region"),
+    )
+    ss.housing = st.selectbox("주거 형태", HOUSING_OPTIONS, key=bind("housing"))
+    ss.home_charger = st.radio(
+        "주거지 충전기",
+        [True, False],
+        format_func=lambda v: "있음" if v else "없음",
+        horizontal=True,
+        key=bind("home_charger"),
+    )
+    ss.work_charger = st.radio(
+        "근무지 충전기",
+        WORK_CHARGER_OPTIONS,
+        horizontal=True,
+        help="재택근무·무직 등은 '해당없음'을 선택하세요. 판정에서는 '없음'과 같습니다.",
+        key=bind("work_charger"),
+    )
+
+
+def render_step_vehicle():
+    ss.hold_years = st.selectbox(
+        "예상 보유 기간",
+        list(HOLD_OPTIONS),
+        format_func=HOLD_OPTIONS.get,
+        key=bind("hold_years"),
+    )
+
+    # 모델 목록은 STEP 2에서 고른 지자체(ss.region) 기준
+    models = complete_models(model_df, ss.region) if ss.region else []
+    model_key = bind("model")
+    if ss[model_key] not in models:
+        ss[model_key] = None
+    ss.model = st.selectbox(
+        f"관심 모델 ({ss.region} 지원 모델)" if ss.region else "관심 모델",
+        models,
+        index=None,
+        placeholder="모델을 선택하세요" if models else "지자체를 먼저 선택하세요",
+        disabled=not models,
+        key=model_key,
+    )
+    if ss.region and not models:
+        st.warning("이 지역은 지원 모델 정보가 없습니다")
+
+    ss.current_efficiency = st.number_input(
+        "현재 차량 연비 (km/L)",
+        min_value=0.0,
+        step=0.1,
+        format="%.1f",
+        key=bind("current_efficiency"),
+    )
+    ss.ev_price_manwon = st.number_input(
+        "관심 전기차 가격 (만원)",
+        min_value=0,
+        step=100,
+        help="보조금 적용 전 차량 가격입니다",
+        key=bind("ev_price_manwon"),
+    )
+    ss.ice_price_manwon = st.number_input(
+        "비교 내연기관차 가격 (만원)",
+        min_value=0,
+        step=100,
+        help="전기차 대신 구매를 고려하는 내연기관차 가격입니다",
+        key=bind("ice_price_manwon"),
+    )
+    ss.has_scrap = st.checkbox(
+        "현재 차량 폐차 또는 매도 예정", key=bind("has_scrap")
+    )
+
+
+STEP_RENDERERS = {1: render_step_driving, 2: render_step_residence, 3: render_step_vehicle}
+
+
 def render_input():
     st.title("🚦 전기차 신호등")
     st.caption("내 조건으로 전기차 전환 여부를 판정합니다")
 
-    st.button("예시 프로필로 채우기", on_click=fill_example)
+    current = ss.input_step
+    if current == 1:
+        st.button("예시 프로필로 채우기", on_click=fill_example)
 
-    left, right = st.columns(2)
+    render_step_indicator(current)
+    st.subheader(f"STEP {current}  {STEPS[current - 1]}")
+    STEP_RENDERERS[current]()
 
-    with left:
-        st.subheader("주행")
-        ss.annual_km = st.number_input(
-            "연간 주행거리 (km)", min_value=0, step=1000, key=bind("annual_km")
-        )
-        ss.commute_km = st.number_input(
-            "출퇴근 왕복 거리 (km)", min_value=0, step=1, key=bind("commute_km")
-        )
-        ss.long_trip = st.selectbox(
-            "장거리 주행 빈도", LONG_TRIP_OPTIONS, key=bind("long_trip")
-        )
-
-        st.subheader("거주")
-        ss.region = st.selectbox(
-            "거주 지자체",
-            loader.get_regions(summary_df),
-            index=None,
-            placeholder="지자체를 선택하세요",
-            key=bind("region"),
-        )
-        ss.housing = st.selectbox("주거 형태", HOUSING_OPTIONS, key=bind("housing"))
-        ss.home_charger = st.radio(
-            "주거지 충전기",
-            [True, False],
-            format_func=lambda v: "있음" if v else "없음",
-            horizontal=True,
-            key=bind("home_charger"),
-        )
-        ss.work_charger = st.radio(
-            "근무지 충전기",
-            WORK_CHARGER_OPTIONS,
-            horizontal=True,
-            help="재택근무·무직 등은 '해당없음'을 선택하세요. 판정에서는 '없음'과 같습니다.",
-            key=bind("work_charger"),
-        )
-
-    with right:
-        st.subheader("보유")
-        ss.hold_years = st.selectbox(
-            "예상 보유 기간",
-            list(HOLD_OPTIONS),
-            format_func=HOLD_OPTIONS.get,
-            key=bind("hold_years"),
-        )
-
-        st.subheader("차량")
-        models = complete_models(model_df, ss.region) if ss.region else []
-        model_key = bind("model")
-        if ss[model_key] not in models:
-            ss[model_key] = None
-        ss.model = st.selectbox(
-            "관심 모델",
-            models,
-            index=None,
-            placeholder="모델을 선택하세요" if models else "지자체를 먼저 선택하세요",
-            disabled=not models,
-            key=model_key,
-        )
-        if ss.region and not models:
-            st.warning("이 지역은 지원 모델 정보가 없습니다")
-
-        ss.current_efficiency = st.number_input(
-            "현재 차량 연비 (km/L)",
-            min_value=0.0,
-            step=0.1,
-            format="%.1f",
-            key=bind("current_efficiency"),
-        )
-        ss.ev_price_manwon = st.number_input(
-            "관심 전기차 가격 (만원)",
-            min_value=0,
-            step=100,
-            help="보조금 적용 전 차량 가격입니다",
-            key=bind("ev_price_manwon"),
-        )
-        ss.ice_price_manwon = st.number_input(
-            "비교 내연기관차 가격 (만원)",
-            min_value=0,
-            step=100,
-            help="전기차 대신 구매를 고려하는 내연기관차 가격입니다",
-            key=bind("ice_price_manwon"),
-        )
-        ss.has_scrap = st.checkbox(
-            "현재 차량 폐차 또는 매도 예정", key=bind("has_scrap")
-        )
-
-    ready = bool(
-        ss.region and ss.model and ss.annual_km > 0 and ss.current_efficiency > 0
-    )
-    if st.button("판정 받기", type="primary", disabled=not ready):
-        ss.step = "result"
-        ss.pop("w_result_region", None)
-        st.rerun()
+    st.write("")
+    prev_col, next_col, _ = st.columns([1, 1, 4])
+    with prev_col:
+        if current > 1:
+            st.button("이전", on_click=go_to_step, args=(current - 1,), use_container_width=True)
+    with next_col:
+        ready = step_ready(current)
+        if current < len(STEPS):
+            st.button(
+                "다음",
+                type="primary",
+                disabled=not ready,
+                on_click=go_to_step,
+                args=(current + 1,),
+                use_container_width=True,
+            )
+        else:
+            st.button(
+                "판정 받기",
+                type="primary",
+                disabled=not ready,
+                on_click=submit,
+                use_container_width=True,
+            )
 
 
 # --- 결과 화면 ----------------------------------------------------------
@@ -367,9 +455,7 @@ def render_result():
         ev_eff = calc.calc_efficiency(model_info["battery_kwh"], model_info["range_normal"])
     except (KeyError, ValueError) as e:
         st.error(f"계산할 수 없습니다: {e}")
-        if st.button("다시 입력하기"):
-            ss.step = "input"
-            st.rerun()
+        st.button("다시 입력하기", on_click=back_to_input)
         return
 
     fuel = calc.calc_fuel_saving(ss.annual_km, ss.current_efficiency, ev_eff)
@@ -490,10 +576,7 @@ def render_result():
         )
 
     # 6) 하단
-    if st.button("다시 입력하기"):
-        ss.step = "input"
-        reset_widgets()
-        st.rerun()
+    st.button("다시 입력하기", on_click=back_to_input)
 
 
 if ss.step == "result":
