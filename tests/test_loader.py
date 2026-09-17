@@ -56,3 +56,15 @@ def test_model_info_missing_column_returns_none(model_df):
     info = loader.get_model_info(model_df.drop(columns=["제조사", "scrap_local"]), "성남시", model)
     assert info["maker"] is None and info["scrap_local"] is None
     assert info["subsidy_with_scrap"] == 10_200_000
+
+
+def test_subsidy_rules_document_loaded():
+    """규정 문서 내용은 사용자가 관리하므로 섹션 구성은 고정하지 않고, 챗봇이 쓰는 요소만 확인한다."""
+    text = loader.load_subsidy_rules()
+    assert text.startswith("# 2026년 전기차 보조금 공통 규정")
+    assert "출처:" in text  # 챗봇이 출처명을 이 줄에서 가져온다
+    assert "## 지자체별로 다른 사항" in text
+
+
+def test_subsidy_rules_missing_file(tmp_path):
+    assert loader.load_subsidy_rules(tmp_path / "없음.md") == ""
