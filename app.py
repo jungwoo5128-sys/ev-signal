@@ -238,11 +238,28 @@ def manwon(value):
     return f"{(value or 0) / 10000:,.0f}"
 
 
-def format_net_cost(value):
-    """표시 전용. 계산값(음수 포함)은 그대로 두고, 0 이하면 설명을 붙인다."""
-    if value <= 0:
-        return "0원 (보조금으로 전액 충당)"
-    return won(value)
+def format_net_cost(value, ev_price, ice_price):
+    """표시 전용. 계산값(음수 포함)은 그대로 두고, 0 이하면 이유를 붙인다."""
+    if value > 0:
+        return won(value)
+    if ev_price <= ice_price:
+        return "0원 (전기차가 더 저렴)"
+    return "0원 (보조금으로 전액 충당)"
+
+
+def won_k(value):
+    """천원 단위 반올림 표시 (연간 비용 추정치)."""
+    return won(round(value, -3))
+
+
+def evidence_table(title, rows):
+    """rows: (항목, 값, 비고) 목록"""
+    st.markdown(f"**{title}**")
+    st.table({
+        "항목": [r[0] for r in rows],
+        "값": [r[1] for r in rows],
+        "비고": [r[2] for r in rows],
+    })
 
 
 def format_bep(years):
@@ -401,7 +418,7 @@ def render_result():
     with left:
         card(
             "연간 연료비 절감",
-            won(round(fuel["saving"], -3)),  # 추정치라 카드에는 천원 단위로
+            won_k(fuel["saving"]),  # 추정치라 카드에는 천원 단위로
             f"연 {ss.annual_km:,}km · 연비 {ss.current_efficiency}km/L 기준",
         )
     with right:
@@ -442,29 +459,21 @@ def render_result():
     # 5) 근거
     with st.expander("근거 자세히 보기"):
         subsidy_amount = subsidy["subsidy"] or 0
-        st.table(
-            {
-                "항목": [
-                    "전기차 가격",
-                    "보조금",
-                    "보조금 적용 후",
-                    "비교 내연기관차 가격",
-                    "실제 추가 부담",
-                    "연간 절감액",
-                    "회수 기간",
-                ],
-                "값": [
-                    won(ev_price),
-                    f"-{subsidy_amount:,.0f}원",
-                    won(ev_price - subsidy_amount),
-                    won(ice_price),
-                    format_net_cost(bep["net_cost"]),
-                    won(round(fuel["saving"], -3)),
-                    format_bep(bep["bep_years"]),
-                ],
-                "비고": ["사용자 입력", "", "", "사용자 입력", "", "", ""],
-            }
-        )
+        evidence_table("차량 비용", [
+            ("전기차 가격", won(ev_price), "사용자 입력"),
+            ("보조금", f"-{subsidy_amount:,.0f}원", ""),
+            ("보조금 적용 후", won(ev_price - subsidy_amount), ""),
+            ("비교 내연기관차 가격", won(ice_price), "사용자 입력"),
+            ("실제 추가 부담", format_net_cost(bep["net_cost"], ev_price, ice_price), ""),
+        ])
+        evidence_table("연간 운행 비용", [
+            ("현재 차량 연간 유류비", won_k(fuel["annual_fuel_cost"]), ""),
+            ("전기차 연간 충전비", won_k(fuel["annual_charge_cost"]), ""),
+            ("연간 절감액", won_k(fuel["saving"]), ""),
+        ])
+        evidence_table("결과", [
+            ("회수 기간", format_bep(bep["bep_years"]), "실제 추가 부담 ÷ 연간 절감액"),
+        ])
         st.markdown(
             f"**모델 제원** · 배터리 {model_info['battery_kwh']}kWh · "
             f"상온 {model_info['range_normal']}km / 저온 {model_info['range_cold']}km"
